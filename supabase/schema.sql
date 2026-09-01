@@ -58,7 +58,9 @@ create table representatives (
 create table quote_requests (
   id uuid primary key default gen_random_uuid(),
   folio text unique not null,
-  client_id uuid references profiles(id) on delete set null,
+  -- Apunta a auth.users (no a profiles): un visitante anónimo ya tiene
+  -- identidad real en Supabase antes de crear su fila en profiles.
+  client_id uuid references auth.users(id) on delete set null,
   contact_email text not null,
   contact_whatsapp text,
   representative_id uuid not null references representatives(id),
