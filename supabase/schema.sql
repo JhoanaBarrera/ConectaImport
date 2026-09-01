@@ -191,6 +191,16 @@ create policy "quote_requests: representante puede responder" on quote_requests
   for update using (
     representative_id in (select id from representatives where profile_id = auth.uid())
   );
+-- Un cliente que cotiza SIN cuenta (invitado) no tiene auth.uid(), así que
+-- necesita otra forma de consultar el estado de su propia solicitud.
+-- Esta política permite leer las solicitudes de invitados (client_id nulo).
+-- Nota de seguridad (prototipo): esto hace que las solicitudes de invitados
+-- sean técnicamente legibles por cualquiera con la llave pública que consulte
+-- la tabla sin filtrar — no se expone en ningún botón de la interfaz, pero
+-- antes de un lanzamiento real conviene cerrar esto (por ejemplo con sesiones
+-- anónimas de Supabase, para que hasta los invitados tengan un auth.uid()).
+create policy "quote_requests: invitado ve sus solicitudes" on quote_requests
+  for select using (client_id is null);
 
 -- Notificaciones: cada quien ve solo las suyas
 create policy "notifications: ver las propias" on notifications

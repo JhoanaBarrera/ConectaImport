@@ -82,6 +82,7 @@ async function restoreSession(){
     const profile = await ensureProfile(session);
     if(profile.role === 'client'){
       state.loggedIn = true;
+      state.accountId = profile.id;
       state.accountEmail = profile.email;
       state.contactEmail = profile.email;
       updateAccountPillIfLogged();
@@ -107,6 +108,7 @@ async function restoreSession(){
 async function clientLogout(){
   if(supabaseClient) await supabaseClient.auth.signOut();
   state.loggedIn = false;
+  state.accountId = null;
   state.accountEmail = null;
   state.contactEmail = null;
   const pill = $('accountPill');

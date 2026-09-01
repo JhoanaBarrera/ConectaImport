@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-let state = { status:'natNoRut', hasSupplier:'yes', path:'B', verif:'basic', selectedRepId:null, mode:'AIR', paid:false, maxReached:0, loggedIn:false, accountEmail:null, lastQuote:null, preliminaryQuote:null, groupFreightOverride:null, compareMode:false, trmAtQuote:null, priceLocked:false, contactEmail:null, contactWhatsapp:null, requestId:null, notifications:[], repResponded:false, repRealQuote:null, repNote:null, rejected:false, rejectReason:null, rejectMsg:null, tlCurrentIndex:-1, tlNotes:{}, tlFiles:{}, repLoggedIn:false, repEmail:null, repRecordId:null, receipt:null, faqClientSeen:{}, faqRepSeen:{}, repVerifType:null, repVerifStatus:{}, supplierQuoteAttached:false, repAvailable:true, repMinOrder:0, clientRating:null, pendingStars:0, incotermKnowledge:'unknown', incoterm:'FOB' };
+let state = { status:'natNoRut', hasSupplier:'yes', path:'B', verif:'basic', selectedRepId:null, mode:'AIR', paid:false, maxReached:0, loggedIn:false, accountEmail:null, accountId:null, quoteRequestDbId:null, lastQuote:null, preliminaryQuote:null, groupFreightOverride:null, compareMode:false, trmAtQuote:null, priceLocked:false, contactEmail:null, contactWhatsapp:null, requestId:null, notifications:[], repResponded:false, repRealQuote:null, repNote:null, rejected:false, rejectReason:null, rejectMsg:null, tlCurrentIndex:-1, tlNotes:{}, tlFiles:{}, repLoggedIn:false, repEmail:null, repRecordId:null, receipt:null, faqClientSeen:{}, faqRepSeen:{}, repVerifType:null, repVerifStatus:{}, supplierQuoteAttached:false, repAvailable:true, repMinOrder:0, clientRating:null, pendingStars:0, incotermKnowledge:'unknown', incoterm:'FOB' };
 
 // ---------------------------------------------------------------------
 // NOTIFICACIONES (registro tipo correo) + SOPORTE HUMANO
@@ -128,6 +128,7 @@ async function clientGateSubmit(mode, btn){
     }
     const profile = await ensureProfile(session);
     state.loggedIn = true;
+    state.accountId = profile.id;
     state.accountEmail = profile.email;
     state.contactEmail = profile.email;
     enterApp();
@@ -404,93 +405,86 @@ function backToClientFromRep(){
   $('appShell').style.display = 'block';
   window.scrollTo(0,0);
 }
-function renderRepQueue(){
+let repQueueRows = [];
+let repOpenRequest = null;
+async function renderRepQueue(){
   if(!state.repAvailable){
     $('repQueue').innerHTML = `<div class="banner">⚪ Estás pausado — no te están llegando nuevas solicitudes. Actívate arriba cuando quieras volver a recibir clientes.</div>`;
     return;
   }
-  const items = [];
-  if(state.requestId && !state.repResponded && !state.rejected){
-    items.push({ id:'live', client: state.contactEmail || 'Cliente en curso', prod: $('q_prod') ? $('q_prod').value : 'Pedido', folio: state.requestId, live:true });
+  if(!supabaseClient || !state.repRecordId){
+    $('repQueue').innerHTML = `<div class="hint">Inicia sesión como representante para ver tus solicitudes.</div>`;
+    return;
   }
-  items.push(
-    { id:'m1', client:'Carolina Ruiz', prod:'Repuestos de bicicleta', folio:'SOL-1180', live:false },
-    { id:'m2', client:'Andrés Pineda', prod:'Empaques biodegradables', folio:'SOL-1176', live:false }
-  );
-  $('repQueue').innerHTML = items.map(it=>`
-    <div class="card tight" style="margin-bottom:8px; ${it.live?'border-color:var(--ink);':''}">
+  $('repQueue').innerHTML = `<div class="waiting-box"><div class="dot-spinner"><span></span><span></span><span></span></div>Cargando solicitudes…</div>`;
+  const { data, error } = await supabaseClient
+    .from('quote_requests')
+    .select('*')
+    .eq('representative_id', state.repRecordId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending:false });
+  if(error){
+    $('repQueue').innerHTML = `<div class="hint">No se pudieron cargar las solicitudes: ${error.message}</div>`;
+    return;
+  }
+  repQueueRows = data || [];
+  if(repQueueRows.length === 0){
+    $('repQueue').innerHTML = `<div class="hint">Todavía no tienes solicitudes pendientes — aparecerán aquí apenas un cliente te elija y pida cotización.</div>`;
+    return;
+  }
+  $('repQueue').innerHTML = repQueueRows.map(r=>`
+    <div class="card tight" style="margin-bottom:8px;">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
         <div>
-          <div style="font-weight:700; font-size:13px;">${it.client} ${it.live?'<span class=\"pill pill-accent\" style=\"margin-left:6px;\">Vivo</span>':''}</div>
-          <div class="hint" style="margin:2px 0 0;">${it.prod} · Folio ${it.folio}</div>
+          <div style="font-weight:700; font-size:13px;">${r.contact_email}</div>
+          <div class="hint" style="margin:2px 0 0;">${r.product_name || 'Pedido'} · Folio ${r.folio}</div>
         </div>
-        <button class="btn ${it.live?'btn-primary':'btn-outline'} btn-sm" onclick="openRepForm('${it.id}')">${it.live? 'Responder ahora':'Ver (ejemplo)'}</button>
+        <button class="btn btn-primary btn-sm" onclick="openRepForm('${r.id}')">Responder ahora</button>
       </div>
     </div>
   `).join('');
 }
 
-function getClientContextHtml(){
-  const statusObj = STATUS_OPTS.find(s=>s.v===state.status);
-  const pathText = {
-    A:'Va a importar a su propio nombre — te necesita como <b>agente de aduanas</b>, no como representante comercial.',
-    B:'No tiene registro de importador — te necesita como <b>representante comercial</b>: la mercancía se nacionaliza a tu nombre y luego se la entregas a él.',
-    C:'Es una empresa que importa a su propio nombre — te necesita como <b>agente de aduanas</b> para el despacho.'
-  }[state.path] || 'No especificado.';
-  const incoterm = state.incoterm || 'FOB';
-  const qualityChips = [
-    { ok: state.hasSupplier==='yes', label: state.hasSupplier==='yes' ? 'Ya tiene proveedor' : 'Buscando proveedor' },
-    { ok: state.loggedIn, label: state.loggedIn ? 'Cuenta verificada' : 'Aún como invitado' },
-    { ok: state.supplierQuoteAttached, label: state.supplierQuoteAttached ? 'Adjuntó cotización del proveedor' : 'Sin cotización de fábrica' },
-    { ok: state.verif !== 'none', label: state.verif !== 'none' ? 'Pidió verificación de proveedor' : 'Sin verificación de proveedor' }
-  ];
+function getClientContextHtml(row){
   return `
     <div class="card" style="background:var(--paper); border-style:dashed;">
       <div class="section-title">Contexto del cliente</div>
-      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
-        ${qualityChips.map(c=>`<span class="pill ${c.ok?'pill-accent':'pill-muted'}">${c.ok?'✓':'○'} ${c.label}</span>`).join('')}
-      </div>
-      <div class="line-item"><span class="lbl">Perfil</span><span class="val" style="font-family:'Inter',sans-serif;">${statusObj ? statusObj.t : '—'}</span></div>
-      <div class="line-item"><span class="lbl">¿Tiene proveedor?</span><span class="val" style="font-family:'Inter',sans-serif;">${state.hasSupplier==='yes'?'Sí':'No — pidió ayuda para buscarlo'}</span></div>
-      <div class="line-item"><span class="lbl">Categoría</span><span class="val" style="font-family:'Inter',sans-serif;">${$('p_cat') ? $('p_cat').value : '—'}</span></div>
-      <div class="line-item"><span class="lbl">Incoterm / ruta elegida</span><span class="val" style="font-family:'Inter',sans-serif;">${incoterm} · ${state.mode}</span></div>
-      <div class="line-item"><span class="lbl">Verificación que pidió</span><span class="val" style="font-family:'Inter',sans-serif;">${verifLabels[state.verif]}</span></div>
-      <div class="hint" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">🧭 <b>¿Qué tipo de relación necesita?</b> ${pathText}</div>
+      <div class="line-item"><span class="lbl">Contacto</span><span class="val" style="font-family:'Inter',sans-serif;">${row.contact_email}${row.contact_whatsapp ? ' · '+row.contact_whatsapp : ''}</span></div>
+      <div class="line-item"><span class="lbl">Incoterm / ruta elegida</span><span class="val" style="font-family:'Inter',sans-serif;">${row.incoterm || 'FOB'} · ${row.shipping_mode || '—'}</span></div>
+      <div class="line-item"><span class="lbl">Verificación que pidió</span><span class="val" style="font-family:'Inter',sans-serif;">${verifLabels[row.verification_level] || row.verification_level || '—'}</span></div>
+      <div class="hint" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">Solicitud creada el ${new Date(row.created_at).toLocaleString('es-CO',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}.</div>
     </div>
   `;
 }
 
 function openRepForm(id){
-  const isLive = id==='live';
+  const row = repQueueRows.find(r=>r.id===id);
+  if(!row){ alert('No se encontró esa solicitud — puede que ya haya sido respondida desde otra sesión.'); return; }
+  repOpenRequest = row;
   $('repForm').style.display = 'block';
-  if(!isLive){
-    $('repForm').innerHTML = `<div class="card"><div class="section-title">Solicitud de ejemplo</div><p class="hint" style="margin-top:0;">Esta tarjeta solo ilustra cómo se ve la bandeja del representante con más volumen — no está conectada a datos reales de este demo.</p></div>`;
-    $('repForm').scrollIntoView({behavior:'smooth', block:'nearest'});
-    return;
-  }
-  const q = state.preliminaryQuote || computeQuoteLines();
+  const q = row.preliminary_quote || {};
   $('repForm').innerHTML = `
-    ${getClientContextHtml()}
+    ${getClientContextHtml(row)}
     <div class="card">
       <div class="section-title">Pedido declarado por el cliente</div>
       <div class="grid">
-        <div><label class="field-label">Producto</label><input type="text" value="${$('q_prod').value}" disabled></div>
-        <div><label class="field-label">Unidades</label><input type="text" value="${$('q_qty').value}" disabled></div>
-        <div><label class="field-label">Peso / volumen</label><input type="text" value="${$('q_weight').value} kg · ${$('q_cbm').value} m³" disabled></div>
-        <div><label class="field-label">FOB declarado (USD)</label><input type="text" value="${fmtUsd(q.fob)}" disabled></div>
+        <div><label class="field-label">Producto</label><input type="text" value="${row.product_name || ''}" disabled></div>
+        <div><label class="field-label">Unidades</label><input type="text" value="${row.quantity || 0}" disabled></div>
+        <div><label class="field-label">Peso / volumen</label><input type="text" value="${row.weight_kg || 0} kg · ${row.volume_cbm || 0} m³" disabled></div>
+        <div><label class="field-label">FOB declarado (USD)</label><input type="text" value="${fmtUsd(row.fob_usd || 0)}" disabled></div>
       </div>
     </div>
     <div class="card">
       <div class="section-title">Tus valores reales</div>
       <p class="hint" style="margin-top:0;">Estos campos vienen prellenados con <b>nuestro estimado automático</b> — ajústalos a las tarifas reales que puedes ofrecer. Es lo que verá el cliente en su cotización confirmada.</p>
       <div class="grid">
-        <div><label class="field-label">Flete real (USD)</label><input type="number" id="rr_freight" value="${q.freight.toFixed(2)}" oninput="updateRRTotal()"></div>
-        <div><label class="field-label">Seguro real (USD)</label><input type="number" id="rr_insurance" value="${q.insurance.toFixed(2)}" oninput="updateRRTotal()"></div>
-        <div><label class="field-label">Arancel real (%)</label><input type="number" id="rr_tariff" value="${q.tariffRate}" step="0.5" oninput="updateRRTotal()"></div>
-        <div><label class="field-label">IVA (%)</label><input type="number" id="rr_iva" value="${q.ivaRate}" step="0.5" oninput="updateRRTotal()"></div>
-        <div><label class="field-label">Costo verificación (USD)</label><input type="number" id="rr_verif" value="${q.verifCost}" oninput="updateRRTotal()"></div>
-        <div><label class="field-label">Tu comisión / honorarios (USD)</label><input type="number" id="rr_commission" value="${q.repCommission.toFixed(2)}" oninput="updateRRTotal()"></div>
-        <div><label class="field-label">Agente aduanas + portuarios (USD)</label><input type="number" id="rr_agent" value="${q.agentFee}" oninput="updateRRTotal()"></div>
+        <div><label class="field-label">Flete real (USD)</label><input type="number" id="rr_freight" value="${(q.freight||0).toFixed ? q.freight.toFixed(2) : (q.freight||0)}" oninput="updateRRTotal()"></div>
+        <div><label class="field-label">Seguro real (USD)</label><input type="number" id="rr_insurance" value="${(q.insurance||0).toFixed ? q.insurance.toFixed(2) : (q.insurance||0)}" oninput="updateRRTotal()"></div>
+        <div><label class="field-label">Arancel real (%)</label><input type="number" id="rr_tariff" value="${q.tariffRate ?? 15}" step="0.5" oninput="updateRRTotal()"></div>
+        <div><label class="field-label">IVA (%)</label><input type="number" id="rr_iva" value="${q.ivaRate ?? 19}" step="0.5" oninput="updateRRTotal()"></div>
+        <div><label class="field-label">Costo verificación (USD)</label><input type="number" id="rr_verif" value="${q.verifCost || 0}" oninput="updateRRTotal()"></div>
+        <div><label class="field-label">Tu comisión / honorarios (USD)</label><input type="number" id="rr_commission" value="${(q.repCommission||0).toFixed ? q.repCommission.toFixed(2) : (q.repCommission||0)}" oninput="updateRRTotal()"></div>
+        <div><label class="field-label">Agente aduanas + portuarios (USD)</label><input type="number" id="rr_agent" value="${q.agentFee || 220}" oninput="updateRRTotal()"></div>
       </div>
       <div id="rrTotalPreview" class="hint" style="margin-top:12px; font-weight:700; color:var(--ink); font-size:13.5px;"></div>
       <label class="field-label" style="margin-top:14px;">Nota para el cliente</label>
@@ -523,7 +517,8 @@ function toggleRejectBox(){
   if(box.style.display==='block') box.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 function updateRRTotal(){
-  const fob = (state.preliminaryQuote || computeQuoteLines()).fob;
+  if(!repOpenRequest) return;
+  const fob = repOpenRequest.fob_usd || 0;
   const freight = parseFloat($('rr_freight').value)||0;
   const insurance = parseFloat($('rr_insurance').value)||0;
   const tariffRate = parseFloat($('rr_tariff').value)||0;
@@ -535,13 +530,14 @@ function updateRRTotal(){
   const tariff = cif*(tariffRate/100);
   const iva = (cif+tariff)*(ivaRate/100);
   const total = cif+tariff+iva+verifCost+commission+agentFee;
-  const prelimTotal = state.preliminaryQuote ? state.preliminaryQuote.total : total;
+  const prelimTotal = repOpenRequest.preliminary_quote ? repOpenRequest.preliminary_quote.total : total;
   const diffPct = prelimTotal>0 ? ((total-prelimTotal)/prelimTotal*100) : 0;
   const sign = diffPct>=0?'+':'';
   $('rrTotalPreview').textContent = `Total real para el cliente: ${fmtUsd(total)}  (estimado automático era ${fmtUsd(prelimTotal)}, ${sign}${diffPct.toFixed(1)}%)`;
 }
-function submitRepResponse(){
-  const fob = (state.preliminaryQuote || computeQuoteLines()).fob;
+async function submitRepResponse(){
+  if(!repOpenRequest) return;
+  const fob = repOpenRequest.fob_usd || 0;
   const freight = parseFloat($('rr_freight').value)||0;
   const insurance = parseFloat($('rr_insurance').value)||0;
   const tariffRate = parseFloat($('rr_tariff').value)||0;
@@ -552,23 +548,30 @@ function submitRepResponse(){
   const cif = fob+freight+insurance;
   const tariff = cif*(tariffRate/100);
   const iva = (cif+tariff)*(ivaRate/100);
-  const lockFee = state.priceLocked ? 12 : 0;
+  const lockFee = repOpenRequest.price_locked ? 12 : 0;
   const total = cif+tariff+iva+verifCost+repCommission+agentFee+lockFee;
-  state.repRealQuote = { fob, freight, insurance, cif, tariffRate, tariff, ivaRate, iva, verifCost, repCommission, agentFee, lockFee, total };
-  state.repResponded = true;
-  state.repNote = $('rep_note').value;
-  logNotification(state.contactEmail, `${$('quoteRepName') ? $('quoteRepName').textContent : 'Tu representante'} confirmó tu cotización`, 'La cotización confirmada con valores reales ya está disponible — vuelve a la plataforma para revisarla y aceptar.');
+  const confirmedQuote = { fob, freight, insurance, cif, tariffRate, tariff, ivaRate, iva, verifCost, repCommission, agentFee, lockFee, total };
+  const repNote = $('rep_note').value;
+  const { error } = await supabaseClient.from('quote_requests').update({
+    status: 'responded', confirmed_quote: confirmedQuote, rep_note: repNote, updated_at: new Date().toISOString()
+  }).eq('id', repOpenRequest.id);
+  if(error){ alert('No se pudo enviar la respuesta: ' + error.message); return; }
+  logNotification(repOpenRequest.contact_email, `Confirmaste la cotización de ${repOpenRequest.folio}`, 'La cotización confirmada con valores reales ya está disponible para el cliente.');
   $('repForm').innerHTML = `<div class="banner">✓ Enviaste la cotización confirmada con tus valores reales. El cliente ya puede verla en su vista, incluyendo tu nota.</div>`;
+  repOpenRequest = null;
   renderRepQueue();
 }
-function submitRejection(){
+async function submitRejection(){
+  if(!repOpenRequest) return;
   const reason = $('rr_reject_reason').value;
   const msg = $('rr_reject_msg').value.trim();
-  state.rejected = true;
-  state.rejectReason = reason;
-  state.rejectMsg = msg;
-  logNotification(state.contactEmail, 'Tu solicitud fue rechazada', `Motivo: ${reason}.${msg? ' Nota del representante: '+msg:''} Puedes elegir otro representante desde la plataforma.`);
+  const { error } = await supabaseClient.from('quote_requests').update({
+    status: 'rejected', reject_reason: reason, reject_msg: msg, updated_at: new Date().toISOString()
+  }).eq('id', repOpenRequest.id);
+  if(error){ alert('No se pudo rechazar la solicitud: ' + error.message); return; }
+  logNotification(repOpenRequest.contact_email, 'Tu solicitud fue rechazada', `Motivo: ${reason}.${msg? ' Nota del representante: '+msg:''} Puedes elegir otro representante desde la plataforma.`);
   $('repForm').innerHTML = `<div class="banner" style="background:var(--danger-soft); border-color:var(--danger); color:#7A241F;">✗ Rechazaste la solicitud (${reason}). El cliente fue notificado y puede elegir otro representante.</div>`;
+  repOpenRequest = null;
   renderRepQueue();
 }
 
@@ -798,13 +801,16 @@ function renderProfileResult(){
   `;
   box.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
-function continueFromProfile(){
+async function continueFromProfile(){
   $('step2Title').textContent = window.__step2Content.title;
   $('step2Sub').textContent = window.__step2Content.sub;
   renderCompanyBanner();
+  goTo(1);
+  $('repList').innerHTML = `<div class="waiting-box"><div class="dot-spinner"><span></span><span></span><span></span></div>Cargando representantes…</div>`;
+  $('repFilters').innerHTML = '';
+  await loadRepresentatives();
   renderFilters();
   renderReps();
-  goTo(1);
 }
 function renderCompanyBanner(){
   $('companyBanner').style.display = (state.path==='C') ? 'block' : 'none';
@@ -813,19 +819,43 @@ function renderCompanyBanner(){
 // ---------------------------------------------------------------------
 // STEP 2: SOCIOS (marketplace — labels change by path)
 // ---------------------------------------------------------------------
-const REPS_B = [
-  { id:'r1', name:'Aduanas Cordillera S.A.S.', type:'Agencia de aduanas — Nivel 1', init:'AC', tags:['Autopartes','China','India'], ops:'340 importaciones', rating:'4.9', response:'< 2h', commission:'0.8% – 1.2% del FOB', feeType:'pct', feeValue:1.0, bank:{ entity:'Bancolombia', accType:'Cuenta corriente', last4:'4821', verifiedDate:'14 mar 2026' } },
-  { id:'r2', name:'Laura Peña — persona natural avalada', type:'Importadora con RUT activo', init:'LP', tags:['Textil','Ferretería'], ops:'58 importaciones', rating:'4.7', response:'< 4h', commission:'USD 90 – 180 flat', feeType:'flat', feeValue:135, bank:{ entity:'Davivienda', accType:'Cuenta de ahorros', last4:'1097', verifiedDate:'2 may 2026' } },
-  { id:'r3', name:'GlobalTrade LatAm', type:'Trading company', init:'GT', tags:['Electrónica','Hogar'], ops:'1.200 importaciones', rating:'4.8', response:'< 1h', commission:'1.0% – 1.5% del FOB', feeType:'pct', feeValue:1.25, bank:{ entity:'Banco de Bogotá', accType:'Cuenta corriente', last4:'3305', verifiedDate:'9 ene 2026' } },
-  { id:'r4', name:'FarmaImport Andina', type:'Agencia especialista en salud', init:'FI', tags:['Farma','Dispositivos médicos'], ops:'210 importaciones', rating:'5.0', response:'< 3h', commission:'1.2% – 1.8% del FOB', feeType:'pct', feeValue:1.5, bank:{ entity:'Bancolombia', accType:'Cuenta corriente', last4:'7710', verifiedDate:'20 jun 2026' } }
-];
-const REPS_A = [
-  { id:'a1', name:'Aduanas Cordillera S.A.S.', type:'Agencia de aduanas — Nivel 1', init:'AC', tags:['Autopartes','China','India'], ops:'340 despachos', rating:'4.9', response:'< 2h', commission:'0.4% – 0.9% del FOB (honorarios)', feeType:'pct', feeValue:0.65, bank:{ entity:'Bancolombia', accType:'Cuenta corriente', last4:'4821', verifiedDate:'14 mar 2026' } },
-  { id:'a2', name:'Roldán Customs Broker', type:'Agencia de aduanas', init:'RC', tags:['Electrónica','Hogar'], ops:'890 despachos', rating:'4.8', response:'< 3h', commission:'USD 180 – 260 flat', feeType:'flat', feeValue:220, bank:{ entity:'BBVA Colombia', accType:'Cuenta corriente', last4:'6642', verifiedDate:'11 feb 2026' } },
-  { id:'a3', name:'FarmaImport Andina', type:'Agencia especialista en salud', init:'FI', tags:['Farma','Dispositivos médicos'], ops:'210 despachos', rating:'5.0', response:'< 3h', commission:'0.6% – 1.0% del FOB', feeType:'pct', feeValue:0.8, bank:{ entity:'Bancolombia', accType:'Cuenta corriente', last4:'7710', verifiedDate:'20 jun 2026' } }
-];
+// Antes había aquí dos listas de representantes inventados (REPS_A / REPS_B).
+// Ahora se cargan de verdad desde Supabase — ver loadRepresentatives() más abajo.
+let allReps = [];
 let compareSelection = [];
 let activeFilter = 'Todos';
+
+function mapRepFromDb(r){
+  const typeLabels = { agencia:'Agencia de aduanas', natural:'Persona natural con registro de importador', trading:'Trading company / comercializadora' };
+  const commission = r.commission_type === 'flat'
+    ? `USD ${r.commission_value ?? 0} flat`
+    : `${r.commission_value ?? 1}% del FOB`;
+  return {
+    id: r.id,
+    name: r.business_name || 'Representante',
+    type: typeLabels[r.rep_type] || r.rep_type,
+    repType: r.rep_type,
+    init: (r.business_name || '??').replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ ]/g,'').trim().split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase() || '??',
+    tags: (r.categories && r.categories.length) ? r.categories : ['General'],
+    ops: `${r.operations_count || 0} operaciones`,
+    rating: r.rating ? Number(r.rating).toFixed(1) : 'Nuevo',
+    response: '< 24h',
+    commission,
+    feeType: r.commission_type || 'pct',
+    feeValue: r.commission_value ?? 1,
+    bank: r.bank_entity ? { entity:r.bank_entity, accType:r.bank_account_type, last4:r.bank_last4, verifiedDate:r.bank_verified_date } : null,
+    verificationStatus: r.verification_status || {}
+  };
+}
+async function loadRepresentatives(){
+  if(!supabaseClient){ allReps = []; return; }
+  const { data, error } = await supabaseClient
+    .from('representatives')
+    .select('*')
+    .eq('available', true);
+  if(error){ console.error('No se pudieron cargar los representantes:', error); allReps = []; return; }
+  allReps = (data || []).map(mapRepFromDb);
+}
 
 const ORDER_HISTORY = [
   { id:'o1', prod:'Filtros de aceite automotriz', qty:500, fob:1800, weight:320, cbm:1.4, boxes:20, path:'B', repId:'r1', repName:'Aduanas Cordillera S.A.S.', mode:'AIR', verif:'basic', date:'12 jun 2026', total:3120.50 },
@@ -847,11 +877,16 @@ function toggleHistory(){
     </div>
   `).join('');
 }
-function reorderPast(id){
+async function reorderPast(id){
   const o = ORDER_HISTORY.find(x=>x.id===id);
   state.path = o.path;
   state.verif = o.verif;
   state.mode = o.mode;
+  if(allReps.length === 0) await loadRepresentatives();
+  if(!repById(o.repId)){
+    alert('Este es un pedido de ejemplo del prototipo original — cuando tengamos historial real de pedidos, "volver a pedir" funcionará con representantes reales.');
+    return;
+  }
   chooseRep(o.repId);
   $('q_prod').value = o.prod;
   $('q_qty').value = o.qty;
@@ -865,7 +900,7 @@ function reorderPast(id){
   if(el) el.classList.add('active');
   generateQuote();
 }
-function currentReps(){ return state.path==='B' ? REPS_B : REPS_A; }
+function currentReps(){ return state.path==='B' ? allReps : allReps.filter(r=>r.repType==='agencia'); }
 function allTags(){ return ['Todos', ...new Set(currentReps().flatMap(r=>r.tags))]; }
 function renderFilters(){
   $('repFilters').innerHTML = allTags().map(f=>`
@@ -876,17 +911,25 @@ function setFilter(f){ activeFilter=f; renderFilters(); renderReps(); }
 function renderReps(){
   const list = currentReps().filter(r=> activeFilter==='Todos' || r.tags.includes(activeFilter));
   const actionLabel = state.path==='B' ? 'Cotizar con este representante' : 'Cotizar con esta agencia';
-  $('repList').innerHTML = list.map(r=>`
+  if(list.length === 0){
+    $('repList').innerHTML = `<div class="banner">Todavía no hay representantes reales registrados${state.path!=='B' ? ' de tipo agencia de aduanas' : ''} en la plataforma. Cuando se registren y queden disponibles, van a aparecer aquí automáticamente.</div>`;
+    renderCompareBar();
+    return;
+  }
+  $('repList').innerHTML = list.map(r=>{
+    const steps = VERIF_STEPS_BY_TYPE[r.repType] || [];
+    const allVerified = steps.length>0 && steps.every(s=>r.verificationStatus[s.k]);
+    return `
     <div class="rep-card">
       <div class="rep-top">
         <div class="rep-avatar">${r.init}</div>
         <div style="flex:1;">
           <div class="rep-name">${r.name}</div>
           <div class="rep-type">${r.type}</div>
-          <span class="pill pill-accent">✓ Verificado</span>
+          <span class="pill ${allVerified?'pill-accent':'pill-warn'}">${allVerified?'✓ Verificado':'⏳ En validación'}</span>
           <details style="margin-top:6px;">
             <summary style="font-size:11.5px; color:var(--ink-soft); cursor:pointer; text-decoration:underline;">¿Qué verificamos?</summary>
-            <p class="hint" style="margin-top:6px;">Identidad legal (NIT/Cámara de Comercio), ${state.path==='B' ? 'registro de importador activo' : 'licencia de agencia de aduanas vigente ante la DIAN'}, titularidad de su cuenta bancaria y antecedentes en listas restrictivas. Última reverificación: ${r.bank.verifiedDate}.</p>
+            <p class="hint" style="margin-top:6px;">Identidad legal (NIT/Cámara de Comercio), ${state.path==='B' ? 'registro de importador activo' : 'licencia de agencia de aduanas vigente ante la DIAN'}, titularidad de su cuenta bancaria y antecedentes en listas restrictivas.${r.bank ? ' Última reverificación: '+r.bank.verifiedDate+'.' : ' Aún en proceso de verificación.'}</p>
           </details>
         </div>
       </div>
@@ -902,7 +945,8 @@ function renderReps(){
         Comparar cotización con otros
       </label>
     </div>
-  `).join('') + `<div id="compareBarSpacer" style="height:${compareSelection.length>=2?'56px':'0'};"></div>`;
+  `;
+  }).join('') + `<div id="compareBarSpacer" style="height:${compareSelection.length>=2?'56px':'0'};"></div>`;
   renderCompareBar();
 }
 function toggleCompare(id, checked){
@@ -1302,9 +1346,9 @@ function pickFromCompare(id){
   generateQuote();
 }
 
-function sendToRepForConfirmation(){
+async function sendToRepForConfirmation(){
   if(!state.contactEmail){ renderContactCapture(); return; }
-  proceedToWaiting();
+  await proceedToWaiting();
 }
 function renderContactCapture(){
   $('quoteResult').innerHTML = `
@@ -1320,17 +1364,46 @@ function renderContactCapture(){
   `;
   $('quoteResult').scrollIntoView({behavior:'smooth', block:'nearest'});
 }
-function submitContactAndSend(){
+async function submitContactAndSend(){
   const email = $('contact_email').value.trim();
   if(!email){ alert('Ingresa un correo para poder avisarte cuando respondan.'); return; }
   state.contactEmail = email;
   state.contactWhatsapp = $('contact_whatsapp').value.trim();
   const pill = $('accountPill');
   pill.innerHTML = `<span class="dot"></span>${email}`;
-  proceedToWaiting();
+  await proceedToWaiting();
 }
-function proceedToWaiting(){
-  if(!state.requestId) state.requestId = 'SOL-' + Math.floor(3000+Math.random()*900);
+async function proceedToWaiting(){
+  if(!requireSupabase()) return;
+  const rep = repById(state.selectedRepId);
+  if(!rep){ alert('Elige un representante real antes de continuar.'); goTo(1); return; }
+  if(!state.quoteRequestDbId){
+    const q = state.preliminaryQuote || computeQuoteLines();
+    const folio = 'SOL-' + Math.floor(3000+Math.random()*900);
+    const payload = {
+      folio,
+      client_id: state.accountId || null,
+      contact_email: state.contactEmail,
+      contact_whatsapp: state.contactWhatsapp || null,
+      representative_id: rep.id,
+      status: 'pending',
+      product_name: $('q_prod').value,
+      quantity: parseInt($('q_qty').value)||0,
+      fob_usd: parseFloat($('q_fob').value)||0,
+      weight_kg: parseFloat($('q_weight').value)||0,
+      volume_cbm: parseFloat($('q_cbm').value)||0,
+      boxes: parseInt($('q_boxes').value)||0,
+      shipping_mode: state.mode,
+      verification_level: state.verif,
+      incoterm: state.incoterm,
+      price_locked: state.priceLocked,
+      preliminary_quote: q
+    };
+    const { data, error } = await supabaseClient.from('quote_requests').insert(payload).select().single();
+    if(error){ alert('No se pudo enviar tu solicitud: ' + error.message); return; }
+    state.requestId = data.folio;
+    state.quoteRequestDbId = data.id;
+  }
   logNotification(state.contactEmail, 'Recibimos tu solicitud de cotización', `Enviamos tu pedido a ${$('quoteRepName').textContent}. Folio ${state.requestId}. Te avisaremos aquí mismo cuando responda.`);
   renderWaitingCard();
 }
@@ -1346,23 +1419,38 @@ function renderWaitingCard(){
         <button class="btn btn-outline btn-sm" onclick="checkRepResponse(this)">🔄 Actualizar estado</button>
         <button class="btn btn-text btn-sm" onclick="openSupport()">💬 Hablar con un asesor</button>
       </div>
-      <div class="hint" style="margin-top:14px; padding-top:12px; border-top:1px dashed var(--line);">🧪 <b>Modo demo:</b> esto normalmente lo resuelve tu representante desde su propio portal. Para verlo ahora, entra a la <span style="text-decoration:underline; cursor:pointer; font-weight:700; color:var(--ink);" onclick="goToRepPortal()">vista de representante</span> y responde la solicitud.</div>
+      <div class="hint" style="margin-top:14px; padding-top:12px; border-top:1px dashed var(--line);">Tu representante responde esto desde su propio portal, normalmente desde otro computador. Si quieres simular su respuesta para probar el flujo, entra a la <span style="text-decoration:underline; cursor:pointer; font-weight:700; color:var(--ink);" onclick="goToRepPortal()">vista de representante</span> con la cuenta de representante y responde la solicitud desde ahí.</div>
     </div>
     <div id="clientFaqDeck" style="margin-top:14px;"></div>
   `;
   initFaqDeck('clientFaqDeck', CLIENT_FAQS, 'faqClientSeen', 'Importador informado');
   $('quoteResult').scrollIntoView({behavior:'smooth', block:'nearest'});
 }
-function checkRepResponse(btn){
-  if(state.rejected){
-    renderRejectedCard();
+async function checkRepResponse(btn){
+  if(!state.quoteRequestDbId || !supabaseClient) return;
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Consultando…';
+  const { data, error } = await supabaseClient
+    .from('quote_requests').select('*').eq('id', state.quoteRequestDbId).maybeSingle();
+  btn.disabled = false;
+  btn.textContent = original;
+  if(error || !data){
+    alert('No se pudo consultar el estado ahora mismo. Intenta de nuevo en un momento.');
     return;
   }
-  if(state.repResponded){
+  if(data.status === 'rejected'){
+    state.rejected = true;
+    state.rejectReason = data.reject_reason;
+    state.rejectMsg = data.reject_msg;
+    renderRejectedCard();
+  } else if(data.status === 'responded' || data.status === 'accepted'){
+    state.repResponded = true;
+    state.repRealQuote = data.confirmed_quote;
+    state.repNote = data.rep_note;
     logNotification(state.contactEmail, `${$('quoteRepName').textContent} confirmó tu cotización`, 'Ya puedes revisar los valores finales y aceptar para continuar con el pago.');
     renderConfirmedQuote();
   } else {
-    const original = btn.textContent;
     btn.textContent = 'Aún sin respuesta…';
     setTimeout(()=>{ btn.textContent = original; }, 1200);
   }
@@ -1378,7 +1466,7 @@ function renderRejectedCard(){
   `;
 }
 function backToMarketplaceAfterReject(){
-  state.rejected = false; state.repResponded = false; state.requestId = null; state.repRealQuote = null; state.contactEmail = null;
+  state.rejected = false; state.repResponded = false; state.requestId = null; state.repRealQuote = null; state.contactEmail = null; state.quoteRequestDbId = null;
   goTo(1);
 }
 
@@ -1487,6 +1575,7 @@ async function createAccountAndContinue(mode, btn){
     }
     const profile = await ensureProfile(session);
     state.loggedIn = true;
+    state.accountId = profile.id;
     state.accountEmail = profile.email;
     state.contactEmail = profile.email;
     const pill = $('accountPill');
