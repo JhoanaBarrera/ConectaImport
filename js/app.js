@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-let state = { status:'natNoRut', hasSupplier:'yes', path:'B', verif:'basic', selectedRepId:null, mode:'AIR', paid:false, maxReached:0, loggedIn:false, accountEmail:null, lastQuote:null, preliminaryQuote:null, groupFreightOverride:null, compareMode:false, trmAtQuote:null, priceLocked:false, contactEmail:null, contactWhatsapp:null, requestId:null, notifications:[], repResponded:false, repRealQuote:null, repNote:null, rejected:false, rejectReason:null, rejectMsg:null, tlCurrentIndex:-1, tlNotes:{}, tlFiles:{}, repLoggedIn:false, repEmail:null, receipt:null, faqClientSeen:{}, faqRepSeen:{}, repVerifType:null, repVerifStatus:{}, supplierQuoteAttached:false, repAvailable:true, repMinOrder:0, clientRating:null, pendingStars:0, incotermKnowledge:'unknown', incoterm:'FOB' };
+let state = { status:'natNoRut', hasSupplier:'yes', path:'B', verif:'basic', selectedRepId:null, mode:'AIR', paid:false, maxReached:0, loggedIn:false, accountEmail:null, lastQuote:null, preliminaryQuote:null, groupFreightOverride:null, compareMode:false, trmAtQuote:null, priceLocked:false, contactEmail:null, contactWhatsapp:null, requestId:null, notifications:[], repResponded:false, repRealQuote:null, repNote:null, rejected:false, rejectReason:null, rejectMsg:null, tlCurrentIndex:-1, tlNotes:{}, tlFiles:{}, repLoggedIn:false, repEmail:null, repRecordId:null, receipt:null, faqClientSeen:{}, faqRepSeen:{}, repVerifType:null, repVerifStatus:{}, supplierQuoteAttached:false, repAvailable:true, repMinOrder:0, clientRating:null, pendingStars:0, incotermKnowledge:'unknown', incoterm:'FOB' };
 
 // ---------------------------------------------------------------------
 // NOTIFICACIONES (registro tipo correo) + SOPORTE HUMANO
@@ -70,6 +70,7 @@ function updateAccountPillIfLogged(){
   }
 }
 function openClientPortalGate(mode){
+  if(state.loggedIn){ enterApp(); return; }
   mode = mode || 'login';
   const isSignup = mode === 'signup';
   $('portalSelectSection').style.display = 'none';
@@ -87,7 +88,8 @@ function openClientPortalGate(mode){
           <div><label class="field-label">Correo electrónico</label><input type="text" id="cl_gate_email" placeholder="tucorreo@ejemplo.com"></div>
           <div><label class="field-label">Contraseña</label><input type="password" id="cl_gate_pass" placeholder="Mínimo 8 caracteres"></div>
         </div>
-        <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="clientGateSubmit('${mode}')">${isSignup ? 'Crear cuenta y entrar' : 'Iniciar sesión'}</button>
+        <div id="cl_gate_error" class="hint" style="color:var(--danger); display:none;"></div>
+        <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="clientGateSubmit('${mode}', this)">${isSignup ? 'Crear cuenta y entrar' : 'Iniciar sesión'}</button>
         <div class="hint" style="text-align:center; margin-top:10px;">${isSignup ? '¿Ya tienes cuenta?' : '¿Aún no tienes cuenta?'} <span style="color:var(--ink); font-weight:600; cursor:pointer;" onclick="openClientPortalGate('${isSignup?'login':'signup'}')">${isSignup ? 'Inicia sesión' : 'Regístrate'}</span></div>
         <div class="hint" style="text-align:center; margin-top:6px;"><span style="text-decoration:underline; cursor:pointer; font-weight:600; color:var(--ink);" onclick="continueAsGuest()">Continuar como invitado →</span></div>
         <button class="btn btn-text btn-sm" style="margin-top:16px; display:block; margin-left:auto; margin-right:auto;" onclick="resetLandingView()">← Volver</button>
@@ -96,15 +98,46 @@ function openClientPortalGate(mode){
   `;
   window.scrollTo(0,0);
 }
-function clientGateSubmit(mode){
+async function clientGateSubmit(mode, btn){
   const email = $('cl_gate_email').value.trim();
   const pass = $('cl_gate_pass').value.trim();
+  const errBox = $('cl_gate_error');
+  if(errBox) errBox.style.display = 'none';
   if(!email || !pass){ alert('Ingresa correo y contraseña.'); return; }
-  state.loggedIn = true;
-  state.accountEmail = email;
-  state.contactEmail = email;
-  enterApp();
-  logNotification(email, mode==='signup' ? 'Bienvenido a Conecta Importa' : 'Iniciaste sesión', mode==='signup' ? 'Tu cuenta quedó creada.' : 'Volviste a entrar a tu cuenta.');
+  if(!requireSupabase()) return;
+  const originalLabel = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Un momento…'; }
+  try{
+    let session;
+    if(mode === 'signup'){
+      const name = $('cl_gate_name') ? $('cl_gate_name').value.trim() : '';
+      const { data, error } = await supabaseClient.auth.signUp({
+        email, password: pass,
+        options: { data: { role:'client', full_name:name } }
+      });
+      if(error) throw error;
+      session = data.session;
+      if(!session){
+        $('clientLoginGate').innerHTML = `<div class="wrap"><div class="banner" style="margin-top:6px;">✓ Cuenta creada. Te enviamos un correo de confirmación a <b>${email}</b> — confírmalo y vuelve para iniciar sesión.</div></div>`;
+        return;
+      }
+    } else {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
+      if(error) throw error;
+      session = data.session;
+    }
+    const profile = await ensureProfile(session);
+    state.loggedIn = true;
+    state.accountEmail = profile.email;
+    state.contactEmail = profile.email;
+    enterApp();
+    logNotification(email, mode==='signup' ? 'Bienvenido a Conecta Importa' : 'Iniciaste sesión', mode==='signup' ? 'Tu cuenta quedó creada.' : 'Volviste a entrar a tu cuenta.');
+  } catch(err){
+    if(errBox){ errBox.textContent = friendlyAuthError(err); errBox.style.display = 'block'; }
+    else alert(friendlyAuthError(err));
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = originalLabel; }
+  }
 }
 function continueAsGuest(){
   enterApp();
@@ -147,7 +180,8 @@ function renderRepLoginGate(mode){
         <div><label class="field-label">Correo electrónico</label><input type="text" id="rep_auth_email" placeholder="tucorreo@agencia.com"></div>
         <div><label class="field-label">Contraseña</label><input type="password" id="rep_auth_pass" placeholder="Mínimo 8 caracteres"></div>
       </div>
-      <button class="btn btn-primary" style="margin-top:12px;" onclick="repLogin('${mode}')">${isSignup ? 'Enviar a verificación' : 'Iniciar sesión'}</button>
+      <div id="rep_auth_error" class="hint" style="color:var(--danger); display:none;"></div>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="repLogin('${mode}', this)">${isSignup ? 'Enviar a verificación' : 'Iniciar sesión'}</button>
       <div class="hint">${isSignup ? '¿Ya tienes cuenta?' : '¿Eres nuevo en la plataforma?'} <span style="color:var(--ink); font-weight:600; cursor:pointer;" onclick="renderRepLoginGate('${isSignup?'login':'signup'}')">${isSignup ? 'Inicia sesión' : 'Regístrate'}</span></div>
     </div>
   `;
@@ -176,22 +210,64 @@ const VERIF_STEPS_BY_TYPE = {
     { k:'humana', label:'Verificación humana (llamada o videollamada)', auto:false }
   ]
 };
-function repLogin(mode){
+async function repLogin(mode, btn){
   const email = $('rep_auth_email').value.trim();
   const pass = $('rep_auth_pass').value.trim();
+  const errBox = $('rep_auth_error');
+  if(errBox) errBox.style.display = 'none';
   if(!email || !pass){ alert('Ingresa correo y contraseña.'); return; }
-  state.repLoggedIn = true;
-  state.repEmail = email;
-  if(mode === 'signup'){
-    state.repVerifType = $('rep_auth_type').value;
-    state.repVerifStatus = {};
-    VERIF_STEPS_BY_TYPE[state.repVerifType].forEach(s=>{ state.repVerifStatus[s.k] = s.auto; });
-    logNotification(email, 'Recibimos tu solicitud de verificación', 'Revisamos tu identidad de inmediato; la licencia, cuenta bancaria y antecedentes suelen tardar 24–72h.');
+  if(!requireSupabase()) return;
+  const originalLabel = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Un momento…'; }
+  try{
+    let session;
+    if(mode === 'signup'){
+      const businessName = $('rep_auth_name').value.trim();
+      const repType = $('rep_auth_type').value;
+      const nit = $('rep_auth_nit').value.trim();
+      const license = $('rep_auth_license').value.trim();
+      if(!businessName){ alert('Ingresa el nombre de tu agencia o negocio.'); return; }
+      const { data, error } = await supabaseClient.auth.signUp({
+        email, password: pass,
+        options: { data: { role:'representative', business_name:businessName, rep_type:repType, nit_or_cedula:nit, dian_license:license } }
+      });
+      if(error) throw error;
+      session = data.session;
+      if(!session){
+        $('repLoginBox').innerHTML = `<div class="banner" style="margin-top:22px;">✓ Cuenta creada. Te enviamos un correo de confirmación a <b>${email}</b> — ábrelo y confirma tu cuenta, luego vuelve aquí e inicia sesión.</div>`;
+        return;
+      }
+    } else {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
+      if(error) throw error;
+      session = data.session;
+    }
+    const profile = await ensureProfile(session);
+    if(profile.role !== 'representative'){
+      alert('Esta cuenta está registrada como cliente, no como representante — inicia sesión desde el Portal Cliente.');
+      await supabaseClient.auth.signOut();
+      return;
+    }
+    const rep = await ensureRepresentative(session, profile);
+    state.repLoggedIn = true;
+    state.repEmail = profile.email;
+    state.repVerifType = rep.rep_type;
+    state.repVerifStatus = rep.verification_status || {};
+    state.repRecordId = rep.id;
+    state.repAvailable = rep.available;
+    state.repMinOrder = rep.min_order_usd || 0;
+    if(mode === 'signup'){
+      logNotification(email, 'Recibimos tu solicitud de verificación', 'Revisamos tu identidad de inmediato; la licencia, cuenta bancaria y antecedentes suelen tardar 24–72h.');
+    } else {
+      logNotification(email, 'Iniciaste sesión como representante', 'Ya puedes ver y responder solicitudes de clientes.');
+    }
     showRepPortalContent();
     renderRepVerificationChecklist();
-  } else {
-    logNotification(email, 'Iniciaste sesión como representante', 'Ya puedes ver y responder solicitudes de clientes.');
-    showRepPortalContent();
+  } catch(err){
+    if(errBox){ errBox.textContent = friendlyAuthError(err); errBox.style.display = 'block'; }
+    else alert(friendlyAuthError(err));
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = originalLabel; }
   }
 }
 function renderRepVerificationChecklist(){
@@ -211,11 +287,17 @@ function renderRepVerificationChecklist(){
     </div>
   `;
 }
-function simulateVerifStep(){
+async function simulateVerifStep(){
   const steps = VERIF_STEPS_BY_TYPE[state.repVerifType];
   const next = steps.find(s=>!state.repVerifStatus[s.k]);
-  if(next){ state.repVerifStatus[next.k] = true; }
+  if(!next) return;
+  state.repVerifStatus[next.k] = true;
   renderRepVerificationChecklist();
+  if(supabaseClient && state.repRecordId){
+    await supabaseClient.from('representatives')
+      .update({ verification_status: state.repVerifStatus })
+      .eq('id', state.repRecordId);
+  }
 }
 // ---------------------------------------------------------------------
 // CENTRO DE DUDAS (gamificado) — cliente y representante
@@ -310,8 +392,11 @@ function toggleAvailability(){
   renderAvailabilityPanel();
   renderRepQueue();
 }
-function repLogout(){
+async function repLogout(){
+  if(supabaseClient) await supabaseClient.auth.signOut();
   state.repLoggedIn = false;
+  state.repEmail = null;
+  state.repRecordId = null;
   renderRepLoginGate('login');
 }
 function backToClientFromRep(){
@@ -1360,7 +1445,8 @@ function renderAuthGate(mode){
         <div><label class="field-label">Correo electrónico</label><input type="text" id="auth_email" value="${state.contactEmail||''}" placeholder="tucorreo@ejemplo.com"></div>
         <div><label class="field-label">Contraseña</label><input type="password" id="auth_pass" placeholder="Mínimo 8 caracteres"></div>
       </div>
-      <button class="btn btn-primary" style="margin-top:12px;" onclick="createAccountAndContinue('${mode}')">${isLogin ? 'Iniciar sesión y continuar' : 'Crear cuenta y continuar'}</button>
+      <div id="auth_gate_error" class="hint" style="color:#F0B4AE; display:none;"></div>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="createAccountAndContinue('${mode}', this)">${isLogin ? 'Iniciar sesión y continuar' : 'Crear cuenta y continuar'}</button>
       <div class="hint">${isLogin ? '¿Aún no tienes cuenta?' : '¿Ya tienes cuenta?'} <span style="color:var(--ink); font-weight:600; cursor:pointer;" onclick="renderAuthGateSwitch('${isLogin?'signup':'login'}')">${isLogin ? 'Crear una' : 'Inicia sesión'}</span></div>
     </div>
   `;
@@ -1371,18 +1457,49 @@ function renderAuthGateSwitch(mode){
   renderAuthGate(mode);
 }
 
-function createAccountAndContinue(mode){
-  const email = $('auth_email').value.trim() || state.contactEmail || 'invitado@correo.com';
+async function createAccountAndContinue(mode, btn){
+  const email = $('auth_email').value.trim() || state.contactEmail || '';
   const pass = $('auth_pass').value.trim();
-  if(mode==='login' && !pass){ alert('Ingresa tu contraseña para iniciar sesión.'); return; }
-  state.loggedIn = true;
-  state.accountEmail = email;
-  state.contactEmail = email;
-  const pill = $('accountPill');
-  pill.classList.add('logged');
-  pill.innerHTML = `<span class="dot"></span>${email}`;
-  logNotification(email, mode==='login' ? 'Iniciaste sesión' : 'Bienvenido a Conecta Importa', mode==='login' ? 'Volviste a entrar a tu cuenta.' : 'Tu cuenta quedó creada. A partir de ahora, cada avance de tu pedido llegará también a este correo.');
-  goTo(3);
+  const errBox = $('auth_gate_error');
+  if(errBox) errBox.style.display = 'none';
+  if(!email || !pass){ alert('Ingresa correo y contraseña.'); return; }
+  if(!requireSupabase()) return;
+  const originalLabel = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Un momento…'; }
+  try{
+    let session;
+    if(mode === 'login'){
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
+      if(error) throw error;
+      session = data.session;
+    } else {
+      const name = $('auth_name') ? $('auth_name').value.trim() : '';
+      const { data, error } = await supabaseClient.auth.signUp({
+        email, password: pass,
+        options: { data: { role:'client', full_name:name } }
+      });
+      if(error) throw error;
+      session = data.session;
+      if(!session){
+        $('authGate').innerHTML = `<div class="banner">✓ Cuenta creada. Confirma tu correo (<b>${email}</b>) y vuelve a aceptar la cotización para continuar.</div>`;
+        return;
+      }
+    }
+    const profile = await ensureProfile(session);
+    state.loggedIn = true;
+    state.accountEmail = profile.email;
+    state.contactEmail = profile.email;
+    const pill = $('accountPill');
+    pill.classList.add('logged');
+    pill.innerHTML = `<span class="dot"></span>${profile.email}`;
+    logNotification(profile.email, mode==='login' ? 'Iniciaste sesión' : 'Bienvenido a Conecta Importa', mode==='login' ? 'Volviste a entrar a tu cuenta.' : 'Tu cuenta quedó creada. A partir de ahora, cada avance de tu pedido llegará también a este correo.');
+    goTo(3);
+  } catch(err){
+    if(errBox){ errBox.textContent = friendlyAuthError(err); errBox.style.display = 'block'; }
+    else alert(friendlyAuthError(err));
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = originalLabel; }
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -1545,3 +1662,6 @@ function renderDocs(){
   `).join('');
 }
 renderDocs();
+
+// Al final, porque necesita las funciones y el `state` definidos arriba.
+restoreSession();
