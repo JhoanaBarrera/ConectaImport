@@ -202,6 +202,12 @@ create policy "quote_requests: representante puede responder" on quote_requests
 create policy "quote_requests: invitado ve sus solicitudes" on quote_requests
   for select using (client_id is null);
 
+-- Ahora que hasta los invitados tienen un auth.uid() real (sesión anónima),
+-- el cliente dueño de la solicitud puede marcarla como aceptada él mismo.
+create policy "quote_requests: cliente puede aceptar" on quote_requests
+  for update using (auth.uid() = client_id)
+  with check (auth.uid() = client_id and status = 'accepted');
+
 -- Notificaciones: cada quien ve solo las suyas
 create policy "notifications: ver las propias" on notifications
   for select using (auth.uid() = profile_id);

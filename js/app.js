@@ -1504,8 +1504,15 @@ function renderConfirmedQuote(){
   `;
 }
 
-function handleAcceptConfirmed(){
-  if(state.loggedIn){ goTo(3); return; }
+async function markQuoteAccepted(){
+  if(!supabaseClient || !state.quoteRequestDbId) return;
+  const { error } = await supabaseClient.from('quote_requests')
+    .update({ status:'accepted', updated_at:new Date().toISOString() })
+    .eq('id', state.quoteRequestDbId);
+  if(error) console.error('No se pudo marcar la cotización como aceptada:', error);
+}
+async function handleAcceptConfirmed(){
+  if(state.loggedIn){ await markQuoteAccepted(); goTo(3); return; }
   renderAuthGate();
 }
 
@@ -1567,6 +1574,7 @@ async function createAccountAndContinue(mode, btn){
     pill.classList.add('logged');
     pill.innerHTML = `<span class="dot"></span>${profile.email}`;
     logNotification(profile.email, mode==='login' ? 'Iniciaste sesión' : 'Bienvenido a Conecta Importa', mode==='login' ? 'Volviste a entrar a tu cuenta.' : 'Tu cuenta quedó creada. A partir de ahora, cada avance de tu pedido llegará también a este correo.');
+    await markQuoteAccepted();
     goTo(3);
   } catch(err){
     if(errBox){ errBox.textContent = friendlyAuthError(err); errBox.style.display = 'block'; }
