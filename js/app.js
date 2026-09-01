@@ -111,12 +111,7 @@ async function clientGateSubmit(mode, btn){
     let session;
     if(mode === 'signup'){
       const name = $('cl_gate_name') ? $('cl_gate_name').value.trim() : '';
-      const { data, error } = await supabaseClient.auth.signUp({
-        email, password: pass,
-        options: { data: { role:'client', full_name:name } }
-      });
-      if(error) throw error;
-      session = data.session;
+      session = await upgradeOrSignUp(email, pass, { role:'client', full_name:name });
       if(!session){
         $('clientLoginGate').innerHTML = `<div class="wrap"><div class="banner" style="margin-top:6px;">✓ Cuenta creada. Te enviamos un correo de confirmación a <b>${email}</b> — confírmalo y vuelve para iniciar sesión.</div></div>`;
         return;
@@ -228,12 +223,7 @@ async function repLogin(mode, btn){
       const nit = $('rep_auth_nit').value.trim();
       const license = $('rep_auth_license').value.trim();
       if(!businessName){ alert('Ingresa el nombre de tu agencia o negocio.'); return; }
-      const { data, error } = await supabaseClient.auth.signUp({
-        email, password: pass,
-        options: { data: { role:'representative', business_name:businessName, rep_type:repType, nit_or_cedula:nit, dian_license:license } }
-      });
-      if(error) throw error;
-      session = data.session;
+      session = await upgradeOrSignUp(email, pass, { role:'representative', business_name:businessName, rep_type:repType, nit_or_cedula:nit, dian_license:license });
       if(!session){
         $('repLoginBox').innerHTML = `<div class="banner" style="margin-top:22px;">✓ Cuenta creada. Te enviamos un correo de confirmación a <b>${email}</b> — ábrelo y confirma tu cuenta, luego vuelve aquí e inicia sesión.</div>`;
         return;
@@ -1562,12 +1552,7 @@ async function createAccountAndContinue(mode, btn){
       session = data.session;
     } else {
       const name = $('auth_name') ? $('auth_name').value.trim() : '';
-      const { data, error } = await supabaseClient.auth.signUp({
-        email, password: pass,
-        options: { data: { role:'client', full_name:name } }
-      });
-      if(error) throw error;
-      session = data.session;
+      session = await upgradeOrSignUp(email, pass, { role:'client', full_name:name });
       if(!session){
         $('authGate').innerHTML = `<div class="banner">✓ Cuenta creada. Confirma tu correo (<b>${email}</b>) y vuelve a aceptar la cotización para continuar.</div>`;
         return;
