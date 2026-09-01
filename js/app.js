@@ -80,7 +80,7 @@ function openClientPortalGate(mode){
     <div class="wrap">
       <div class="auth-card" style="margin-top:6px;">
         <div class="lock-badge">🧑‍💼 Portal Cliente</div>
-        <p style="font-size:12.5px; color:var(--ink); line-height:1.6; margin:0 0 14px;">
+        <p style="font-size:12.5px; line-height:1.6; margin:0 0 14px;">
           Puedes explorar y cotizar sin cuenta. Inicia sesión si ya tienes una, regístrate, o entra como invitado — solo te pediremos crear cuenta cuando confirmes un pedido.
         </p>
         <div class="grid">
@@ -88,11 +88,11 @@ function openClientPortalGate(mode){
           <div><label class="field-label">Correo electrónico</label><input type="text" id="cl_gate_email" placeholder="tucorreo@ejemplo.com"></div>
           <div><label class="field-label">Contraseña</label><input type="password" id="cl_gate_pass" placeholder="Mínimo 8 caracteres"></div>
         </div>
-        <div id="cl_gate_error" class="hint" style="color:var(--danger); display:none;"></div>
+        <div id="cl_gate_error" class="hint" style="color:#F0B4AE; display:none;"></div>
         <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="clientGateSubmit('${mode}', this)">${isSignup ? 'Crear cuenta y entrar' : 'Iniciar sesión'}</button>
-        <div class="hint" style="text-align:center; margin-top:10px;">${isSignup ? '¿Ya tienes cuenta?' : '¿Aún no tienes cuenta?'} <span style="color:var(--ink); font-weight:600; cursor:pointer;" onclick="openClientPortalGate('${isSignup?'login':'signup'}')">${isSignup ? 'Inicia sesión' : 'Regístrate'}</span></div>
-        <div class="hint" style="text-align:center; margin-top:6px;"><span style="text-decoration:underline; cursor:pointer; font-weight:600; color:var(--ink);" onclick="continueAsGuest()">Continuar como invitado →</span></div>
-        <button class="btn btn-text btn-sm" style="margin-top:16px; display:block; margin-left:auto; margin-right:auto;" onclick="resetLandingView()">← Volver</button>
+        <div class="hint" style="text-align:center; margin-top:10px; color:#B9BEC9;">${isSignup ? '¿Ya tienes cuenta?' : '¿Aún no tienes cuenta?'} <span style="color:var(--lime); font-weight:600; text-decoration:underline; cursor:pointer;" onclick="openClientPortalGate('${isSignup?'login':'signup'}')">${isSignup ? 'Inicia sesión' : 'Regístrate'}</span></div>
+        <div class="hint" style="text-align:center; margin-top:6px;"><span style="text-decoration:underline; cursor:pointer; font-weight:600; color:var(--lime);" onclick="continueAsGuest()">Continuar como invitado →</span></div>
+        <button class="btn btn-text btn-sm" style="margin-top:16px; display:block; margin-left:auto; margin-right:auto; color:#fff;" onclick="resetLandingView()">← Volver</button>
       </div>
     </div>
   `;
@@ -161,7 +161,7 @@ function renderRepLoginGate(mode){
     ${isSignup ? `<div class="banner" style="margin-top:22px;">🚀 <b>Primeros representantes:</b> cotizar y responder solicitudes nunca tiene costo. La plataforma no te cobra comisión sobre la tuya — solo cuando un pedido se concreta, el cliente ve tu comisión con total transparencia, igual que si te contratara directo.</div>` : ''}
     <div class="auth-card" id="repAuthCard" ${isSignup?'':'style="margin-top:22px;"'}>
       <div class="lock-badge">🔒 Acceso solo para representantes y agencias verificadas</div>
-      <p style="font-size:12.5px; color:var(--ink); line-height:1.6; margin:0 0 14px;">
+      <p style="font-size:12.5px; line-height:1.6; margin:0 0 14px;">
         ${isSignup ? 'Regístrate con los datos legales de tu agencia o negocio — nada de esto te activa de inmediato, primero pasa por nuestro proceso de verificación.' : 'Ingresa con tu cuenta de representante para ver y responder solicitudes de clientes.'}
       </p>
       <div class="grid">
@@ -180,9 +180,9 @@ function renderRepLoginGate(mode){
         <div><label class="field-label">Correo electrónico</label><input type="text" id="rep_auth_email" placeholder="tucorreo@agencia.com"></div>
         <div><label class="field-label">Contraseña</label><input type="password" id="rep_auth_pass" placeholder="Mínimo 8 caracteres"></div>
       </div>
-      <div id="rep_auth_error" class="hint" style="color:var(--danger); display:none;"></div>
+      <div id="rep_auth_error" class="hint" style="color:#F0B4AE; display:none;"></div>
       <button class="btn btn-primary" style="margin-top:12px;" onclick="repLogin('${mode}', this)">${isSignup ? 'Enviar a verificación' : 'Iniciar sesión'}</button>
-      <div class="hint">${isSignup ? '¿Ya tienes cuenta?' : '¿Eres nuevo en la plataforma?'} <span style="color:var(--ink); font-weight:600; cursor:pointer;" onclick="renderRepLoginGate('${isSignup?'login':'signup'}')">${isSignup ? 'Inicia sesión' : 'Regístrate'}</span></div>
+      <div class="hint" style="color:#B9BEC9;">${isSignup ? '¿Ya tienes cuenta?' : '¿Eres nuevo en la plataforma?'} <span style="color:var(--lime); font-weight:600; text-decoration:underline; cursor:pointer;" onclick="renderRepLoginGate('${isSignup?'login':'signup'}')">${isSignup ? 'Inicia sesión' : 'Regístrate'}</span></div>
     </div>
   `;
 }
@@ -1437,7 +1437,7 @@ function renderAuthGate(mode){
   $('quoteResult').innerHTML += `
     <div class="auth-card" id="authGate" style="margin-top:14px;">
       <div class="lock-badge">🔒 Necesitas una cuenta para continuar</div>
-      <p style="font-size:12.5px; color:var(--ink); line-height:1.6; margin:0 0 14px;">
+      <p style="font-size:12.5px; line-height:1.6; margin:0 0 14px;">
         A partir de aquí compartimos tus datos y los del proveedor con ${$('quoteRepName').textContent}, y comprometemos el pago. Explorar y cotizar no requería cuenta — confirmar el pedido sí.
       </p>
       <div class="grid">
@@ -1447,7 +1447,7 @@ function renderAuthGate(mode){
       </div>
       <div id="auth_gate_error" class="hint" style="color:#F0B4AE; display:none;"></div>
       <button class="btn btn-primary" style="margin-top:12px;" onclick="createAccountAndContinue('${mode}', this)">${isLogin ? 'Iniciar sesión y continuar' : 'Crear cuenta y continuar'}</button>
-      <div class="hint">${isLogin ? '¿Aún no tienes cuenta?' : '¿Ya tienes cuenta?'} <span style="color:var(--ink); font-weight:600; cursor:pointer;" onclick="renderAuthGateSwitch('${isLogin?'signup':'login'}')">${isLogin ? 'Crear una' : 'Inicia sesión'}</span></div>
+      <div class="hint" style="color:#B9BEC9;">${isLogin ? '¿Aún no tienes cuenta?' : '¿Ya tienes cuenta?'} <span style="color:var(--lime); font-weight:600; text-decoration:underline; cursor:pointer;" onclick="renderAuthGateSwitch('${isLogin?'signup':'login'}')">${isLogin ? 'Crear una' : 'Inicia sesión'}</span></div>
     </div>
   `;
   $('authGate').scrollIntoView({behavior:'smooth', block:'nearest'});
