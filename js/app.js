@@ -1259,6 +1259,20 @@ function computeQuoteLines(fobOverride, freightOverride, repOverride){
 const fmtUsd = n => '$ '+n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
 const verifLabels = { none:'Sin verificación', basic:'Verificación básica', inspection:'Inspección de sitio' };
 
+// Fee de activación de la plataforma, cobrado al cliente cuando acepta la
+// cotización confirmada — separado de la comisión del representante.
+// VALORES DE EJEMPLO, por definir cuando haya datos reales de
+// representantes y de las primeras transacciones. Fácil de ajustar aquí.
+const PLATFORM_FEE_TIERS = [
+  { maxFob: 3000, fee: 15 },
+  { maxFob: 10000, fee: 35 },
+  { maxFob: Infinity, fee: 60 }
+];
+function getPlatformFee(fob){
+  const tier = PLATFORM_FEE_TIERS.find(t => fob < t.maxFob);
+  return tier ? tier.fee : PLATFORM_FEE_TIERS[PLATFORM_FEE_TIERS.length-1].fee;
+}
+
 function quoteLinesHtml(q){
   return `
     <div class="line-item"><span class="lbl">Valor FOB</span><span class="val">${fmtUsd(q.fob)}</span></div>
@@ -1540,6 +1554,7 @@ function renderConfirmedQuote(){
       ${state.repNote ? `<div class="hint" style="background:var(--paper); border-radius:8px; padding:10px 12px; margin-bottom:12px;">💬 "${state.repNote}" — ${repName}</div>` : ''}
       ${quoteLinesHtml(q)}
       <div class="hint">Estos son los valores reales que aplicará ${repName}, ya con el flete cotizado a la tarifa vigente. Al aceptar, se compromete el pedido.</div>
+      <div class="hint" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">Además de esto, Conecta Importa cobra un <b>fee de activación de ${fmtUsd(getPlatformFee(q.fob))}</b> (ejemplo, por definir) — es un cobro aparte de la plataforma, no de ${repName}.</div>
       <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
         <button class="btn btn-primary" onclick="handleAcceptConfirmed()">Aceptar cotización confirmada</button>
         <button class="btn btn-outline">Solicitar otro ajuste</button>
@@ -1557,8 +1572,23 @@ async function markQuoteAccepted(){
   if(error) console.error('No se pudo marcar la cotización como aceptada:', error);
 }
 async function handleAcceptConfirmed(){
-  if(state.loggedIn){ await markQuoteAccepted(); goTo(3); return; }
+  if(state.loggedIn){ await markQuoteAccepted(); renderPlatformFeeGate(); return; }
   renderAuthGate();
+}
+function renderPlatformFeeGate(){
+  const q = state.lastQuote || {};
+  const fee = getPlatformFee(q.fob || 0);
+  $('quoteResult').innerHTML = `
+    <div class="card" style="border-color:var(--ink);">
+      <span class="pill pill-warn">Antes de continuar</span>
+      <div class="section-title" style="margin-top:8px;">Fee de activación de la plataforma</div>
+      <p class="hint" style="margin-top:0;">Además de lo que le transfieres directamente a tu representante, Conecta Importa cobra un fee de activación por conectar tu pedido — separado de su comisión.</p>
+      <div class="line-item"><span class="lbl">Fee de activación (ejemplo, por definir)</span><span class="val">${fmtUsd(fee)}</span></div>
+      <div class="hint" style="margin-top:8px;">Este valor es de ejemplo — el monto final y la forma exacta de cobro todavía se están definiendo. Lo dejamos visible desde ya para que sea transparente.</div>
+      <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="goTo(3)">Entiendo, continuar →</button>
+    </div>
+  `;
+  $('quoteResult').scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
 function renderAuthGate(mode){
@@ -1620,7 +1650,7 @@ async function createAccountAndContinue(mode, btn){
     pill.innerHTML = `<span class="dot"></span>${profile.email}`;
     logNotification(profile.email, mode==='login' ? 'Iniciaste sesión' : 'Bienvenido a Conecta Importa', mode==='login' ? 'Volviste a entrar a tu cuenta.' : 'Tu cuenta quedó creada. A partir de ahora, cada avance de tu pedido llegará también a este correo.');
     await markQuoteAccepted();
-    goTo(3);
+    renderPlatformFeeGate();
   } catch(err){
     if(errBox){ errBox.textContent = friendlyAuthError(err); errBox.style.display = 'block'; }
     else alert(friendlyAuthError(err));
