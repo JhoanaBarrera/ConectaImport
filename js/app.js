@@ -356,7 +356,7 @@ function updateFaqProgress(containerId, seenKey, total, badgeText){
   const badgeEl = $(containerId+'_badge');
   if(progressEl) progressEl.textContent = `${seen}/${total} dudas resueltas`;
   if(barEl) barEl.style.width = pct+'%';
-  if(badgeEl) badgeEl.innerHTML = seen===total ? `<span class="pill pill-accent">🏅 ${badgeText}</span>` : '';
+  if(badgeEl) badgeEl.innerHTML = seen===total ? `<span class="pill pill-recommend">🏅 ${badgeText}</span>` : '';
 }
 
 function showRepPortalContent(){
@@ -647,6 +647,7 @@ function renderStepper(){
     if(i === currentScreen()) cls = 'current';
     if(i > state.maxReached) cls += ' disabled';
     const needsLock = i===3 && !state.loggedIn && state.maxReached < 3;
+    if(needsLock) cls += ' locked';
     const circleContent = i < currentScreen() ? '✓' : needsLock ? '🔒' : i+1;
     return `
     <div class="step-node ${cls}" onclick="tryGoTo(${i})">
@@ -820,7 +821,7 @@ function renderProfileResult(){
     }
     box.innerHTML = `
       <div class="card" style="border-color:var(--ink); background:var(--lime-tint);">
-        <span class="pill pill-accent">Recomendado</span>
+        <span class="pill pill-recommend">Recomendado</span>
         <div class="section-title" style="margin-top:8px;">${info.title}</div>
         <p style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin:0 0 6px;">Para importar <b>${cat.toLowerCase()}</b>. ${info.desc}</p>
         ${extraNote}
@@ -961,7 +962,7 @@ function renderReps(){
         <div style="flex:1;">
           <div class="rep-name">${r.name}</div>
           <div class="rep-type">${r.type}</div>
-          <span class="pill ${allVerified?'pill-accent':'pill-warn'}">${allVerified?'✓ Verificado':'⏳ En validación'}</span>
+          <span class="pill ${allVerified?'pill-ok':'pill-warn'}">${allVerified?'✓ Verificado':'⏳ En validación'}</span>
           <details style="margin-top:6px;">
             <summary style="font-size:11.5px; color:var(--ink-soft); cursor:pointer; text-decoration:underline;">¿Qué verificamos?</summary>
             <p class="hint" style="margin-top:6px;">Identidad legal, ${r.repType==='agencia_aduanas' ? 'licencia de agencia de aduanas vigente ante la DIAN' : r.repType==='trading_company' ? 'RUT con registro de importador activo' : 'antecedentes comerciales'}, titularidad de su cuenta bancaria y antecedentes en listas restrictivas.${r.bank ? ' Última reverificación: '+r.bank.verifiedDate+'.' : ' Aún en proceso de verificación.'}</p>
@@ -1018,7 +1019,7 @@ function openChat(id){
   const panel = $('chatPanel');
   panel.innerHTML = `
     <div class="chat-box">
-      <div class="chat-head">${r.name} <span class="pill pill-accent">✓ Verificado</span></div>
+      <div class="chat-head">${r.name} <span class="pill pill-ok">✓ Verificado</span></div>
       <div class="chat-thread" id="chatThread">
         <div class="msg them">Hola, gracias por escribir 👋 Cuéntame qué producto quieres importar y desde qué país.</div>
       </div>
@@ -1376,7 +1377,7 @@ function renderCompareQuotes(){
     </div>
     ${quotes.map((item,i)=>`
       <div class="card ${i===0?'':''}" style="${i===0?'border-color:var(--ink);':''}">
-        ${i===0?'<span class="pill pill-accent">Más económico</span>':''}
+        ${i===0?'<span class="pill pill-ok">Más económico</span>':''}
         <div class="section-title" style="margin-top:${i===0?'8px':'0'};">${item.rep.name}</div>
         <div class="hint" style="margin-top:-6px;">${item.rep.type} · comisión: ${item.rep.commission}</div>
         <div class="line-item total"><span class="lbl">Total puesto en tu bodega</span><span class="val">${fmtUsd(item.q.total)}</span></div>
@@ -1547,7 +1548,7 @@ function renderConfirmedQuote(){
   $('quoteResult').innerHTML = `
     <div class="card" style="border-color:var(--ink);">
       <div class="quote-stage-label">
-        <span class="pill pill-accent">✓ Confirmada por ${repName}</span>
+        <span class="pill pill-ok">✓ Confirmada por ${repName}</span>
         ${deltaHtml}
       </div>
       <div class="section-title">Cotización confirmada · ${state.mode} · ${verifLabels[state.verif]}</div>
@@ -1812,7 +1813,7 @@ function renderDocs(){
     <div class="doc-row">
       <div><div class="doc-name">${d.name}</div><div class="doc-note">${d.note}</div></div>
       <div style="display:flex; align-items:center; gap:8px;">
-        <span class="pill ${d.ready?'pill-accent':'pill-muted'}">${d.ready?'Disponible':'Pendiente'}</span>
+        <span class="pill ${d.ready?'pill-ok':'pill-muted'}">${d.ready?'Disponible':'Pendiente'}</span>
         <button class="btn btn-outline btn-sm" ${d.ready?'':'disabled'}>Ver</button>
       </div>
     </div>
