@@ -218,6 +218,7 @@
   .hero::before, .hero::after{content:""; position:absolute; width:420px; height:420px; border-radius:50%; filter:blur(90px); z-index:0;}
   .hero::before{background:radial-gradient(circle, rgba(45,156,219,.35), transparent 70%); top:-160px; right:-140px;}
   .hero::after{background:radial-gradient(circle, rgba(124,108,246,.30), transparent 70%); bottom:-180px; left:-140px;}
+  .hero-row{max-width:1100px; margin:0 auto; position:relative; z-index:1;}
   .hero-inner{max-width:520px; margin:0 auto; text-align:center; position:relative; z-index:1; padding-bottom:36px;}
   .hero-eyebrow{display:inline-block; font-size:11.5px; font-weight:700; color:var(--trust); text-transform:uppercase; letter-spacing:.08em; margin-bottom:16px;}
   .hero-title{font-size:34px; font-weight:700; line-height:1.1; margin-bottom:14px; letter-spacing:-.02em;}
@@ -262,3 +263,23 @@
   .steps-preview-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:14px;}
   .steps-preview-item{font-size:12.5px; color:var(--ink-soft); display:flex; align-items:center; gap:9px;}
   .steps-preview-num{width:24px;height:24px;border-radius:50%; background:var(--trust-tint); color:var(--trust); font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-family:'Space Grotesk',sans-serif;}
+
+  /* ---------- ESCRITORIO ----------
+     Todo el sitio estaba pensado a 680px fijos — en pantallas grandes
+     quedaba una columna angosta flotando en medio de espacio vacío.
+     A partir de acá el contenedor crece con la pantalla, y el hero pasa
+     de apilado a dos columnas (texto a la izquierda, ejemplo a la derecha). */
+  @media (min-width:840px){
+    .wrap, .app-header-inner, .landing-header-inner{max-width:840px;}
+  }
+  @media (min-width:1120px){
+    .wrap, .app-header-inner, .landing-header-inner{max-width:1000px;}
+  }
+  @media (min-width:960px){
+    .hero-row{display:flex; align-items:center; gap:52px; padding:32px 32px 8px;}
+    .hero-inner{flex:1 1 440px; max-width:540px; margin:0; text-align:left; padding-bottom:0;}
+    .hero-note{margin-top:14px;}
+    .hero-mockup{flex:0 0 380px; max-width:380px; margin:0;}
+    .trust-bar{justify-content:flex-start; padding-left:32px; padding-right:32px;}
+  }
+
