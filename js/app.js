@@ -84,9 +84,9 @@ function openClientPortalGate(mode){
           Puedes explorar y cotizar sin cuenta. Inicia sesión si ya tienes una, regístrate, o entra como invitado — solo te pediremos crear cuenta cuando confirmes un pedido.
         </p>
         <div class="grid">
-          ${isSignup ? `<div><label class="field-label">Nombre completo</label><input type="text" id="cl_gate_name" placeholder="Tu nombre"></div>` : ''}
-          <div><label class="field-label">Correo electrónico</label><input type="text" id="cl_gate_email" placeholder="tucorreo@ejemplo.com"></div>
-          <div><label class="field-label">Contraseña</label><input type="password" id="cl_gate_pass" placeholder="Mínimo 8 caracteres"></div>
+          ${isSignup ? `<div><label class="field-label">Nombre completo</label><input type="text" id="cl_gate_name" autocomplete="name" placeholder="Tu nombre"></div>` : ''}
+          <div><label class="field-label">Correo electrónico</label><input type="email" id="cl_gate_email" autocomplete="email" placeholder="tucorreo@ejemplo.com"></div>
+          <div><label class="field-label">Contraseña</label><input type="password" id="cl_gate_pass" autocomplete="${isSignup?'new-password':'current-password'}" placeholder="Mínimo 8 caracteres"></div>
         </div>
         <div id="cl_gate_error" class="hint" style="color:#F0B4AE; display:none;"></div>
         <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="clientGateSubmit('${mode}', this)">${isSignup ? 'Crear cuenta y entrar' : 'Iniciar sesión'}</button>
@@ -162,7 +162,7 @@ function renderRepLoginGate(mode){
       </p>
       <div class="grid">
         ${isSignup ? `
-        <div><label class="field-label">Nombre de la agencia / representante</label><input type="text" id="rep_auth_name" placeholder="Ej. Aduanas Cordillera S.A.S."></div>
+        <div><label class="field-label">Nombre de la agencia / representante</label><input type="text" id="rep_auth_name" autocomplete="organization" placeholder="Ej. Aduanas Cordillera S.A.S."></div>
         <div><label class="field-label">Tipo</label>
           <select id="rep_auth_type">
             <option value="agencia_aduanas">Agencia de aduanas (declara ante la DIAN)</option>
@@ -174,8 +174,8 @@ function renderRepLoginGate(mode){
         <div><label class="field-label">NIT o cédula</label><input type="text" id="rep_auth_nit" placeholder="900.123.456-7"></div>
         <div><label class="field-label">N° de licencia DIAN (si aplica)</label><input type="text" id="rep_auth_license" placeholder="Ej. RES-2024-00218"></div>
         ` : ''}
-        <div><label class="field-label">Correo electrónico</label><input type="text" id="rep_auth_email" placeholder="tucorreo@agencia.com"></div>
-        <div><label class="field-label">Contraseña</label><input type="password" id="rep_auth_pass" placeholder="Mínimo 8 caracteres"></div>
+        <div><label class="field-label">Correo electrónico</label><input type="email" id="rep_auth_email" autocomplete="email" placeholder="tucorreo@agencia.com"></div>
+        <div><label class="field-label">Contraseña</label><input type="password" id="rep_auth_pass" autocomplete="${isSignup?'new-password':'current-password'}" placeholder="Mínimo 8 caracteres"></div>
       </div>
       <div id="rep_auth_error" class="hint" style="color:#F0B4AE; display:none;"></div>
       <button class="btn btn-primary" style="margin-top:12px;" onclick="repLogin('${mode}', this)">${isSignup ? 'Enviar a verificación' : 'Iniciar sesión'}</button>
@@ -1405,8 +1405,8 @@ function renderContactCapture(){
       <div class="section-title">¿A dónde te avisamos?</div>
       <p class="hint" style="margin-top:0;">${$('quoteRepName').textContent} puede tardar horas en responder — no tienes que quedarte esperando en esta pantalla. Déjanos tu correo (y WhatsApp si quieres) para avisarte apenas conteste. Esto todavía no crea una cuenta.</p>
       <div class="grid">
-        <div><label class="field-label">Correo electrónico</label><input type="text" id="contact_email" placeholder="tucorreo@ejemplo.com"></div>
-        <div><label class="field-label">WhatsApp (opcional)</label><input type="text" id="contact_whatsapp" placeholder="+57 300 000 0000"></div>
+        <div><label class="field-label">Correo electrónico</label><input type="email" id="contact_email" autocomplete="email" placeholder="tucorreo@ejemplo.com"></div>
+        <div><label class="field-label">WhatsApp (opcional)</label><input type="tel" id="contact_whatsapp" autocomplete="tel" placeholder="+57 300 000 0000"></div>
       </div>
       <button class="btn btn-primary" style="margin-top:12px;" onclick="submitContactAndSend()">Enviar solicitud</button>
     </div>
@@ -1601,9 +1601,9 @@ function renderAuthGate(mode){
         A partir de aquí compartimos tus datos y los del proveedor con ${$('quoteRepName').textContent}, y comprometemos el pago. Explorar y cotizar no requería cuenta — confirmar el pedido sí.
       </p>
       <div class="grid">
-        ${isLogin ? '' : `<div><label class="field-label">Nombre completo</label><input type="text" id="auth_name" placeholder="Tu nombre"></div>`}
-        <div><label class="field-label">Correo electrónico</label><input type="text" id="auth_email" value="${state.contactEmail||''}" placeholder="tucorreo@ejemplo.com"></div>
-        <div><label class="field-label">Contraseña</label><input type="password" id="auth_pass" placeholder="Mínimo 8 caracteres"></div>
+        ${isLogin ? '' : `<div><label class="field-label">Nombre completo</label><input type="text" id="auth_name" autocomplete="name" placeholder="Tu nombre"></div>`}
+        <div><label class="field-label">Correo electrónico</label><input type="email" id="auth_email" autocomplete="email" value="${state.contactEmail||''}" placeholder="tucorreo@ejemplo.com"></div>
+        <div><label class="field-label">Contraseña</label><input type="password" id="auth_pass" autocomplete="${isLogin?'current-password':'new-password'}" placeholder="Mínimo 8 caracteres"></div>
       </div>
       <div id="auth_gate_error" class="hint" style="color:#F0B4AE; display:none;"></div>
       <button class="btn btn-primary" style="margin-top:12px;" onclick="createAccountAndContinue('${mode}', this)">${isLogin ? 'Iniciar sesión y continuar' : 'Crear cuenta y continuar'}</button>
