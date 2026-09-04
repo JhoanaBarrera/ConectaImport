@@ -31,7 +31,9 @@ create table representatives (
   id uuid primary key default gen_random_uuid(),
   profile_id uuid not null references profiles(id) on delete cascade,
   business_name text not null,
-  rep_type text not null check (rep_type in ('agencia','natural','trading')),
+  -- Los 4 roles legales reales (ver notas del negocio): una agencia de
+  -- aduanas NO puede además ser representante comercial del proveedor.
+  rep_type text not null check (rep_type in ('agencia_aduanas','agente_sourcing','agente_carga','trading_company')),
   nit_or_cedula text,
   dian_license text,
   categories text[] default '{}',

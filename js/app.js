@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-let state = { status:'natNoRut', hasSupplier:'yes', path:'B', verif:'basic', selectedRepId:null, mode:'AIR', paid:false, maxReached:0, loggedIn:false, accountEmail:null, accountId:null, quoteRequestDbId:null, lastQuote:null, preliminaryQuote:null, groupFreightOverride:null, compareMode:false, trmAtQuote:null, priceLocked:false, contactEmail:null, contactWhatsapp:null, requestId:null, notifications:[], repResponded:false, repRealQuote:null, repNote:null, rejected:false, rejectReason:null, rejectMsg:null, tlCurrentIndex:-1, tlNotes:{}, tlFiles:{}, repLoggedIn:false, repEmail:null, repRecordId:null, receipt:null, faqClientSeen:{}, faqRepSeen:{}, repVerifType:null, repVerifStatus:{}, supplierQuoteAttached:false, repAvailable:true, repMinOrder:0, clientRating:null, pendingStars:0, incotermKnowledge:'unknown', incoterm:'FOB' };
+let state = { status:'sinRutNoQuiere', hasSupplier:'yes', path:'B', verif:'basic', selectedRepId:null, mode:'AIR', paid:false, maxReached:0, loggedIn:false, accountEmail:null, accountId:null, quoteRequestDbId:null, lastQuote:null, preliminaryQuote:null, groupFreightOverride:null, compareMode:false, trmAtQuote:null, priceLocked:false, contactEmail:null, contactWhatsapp:null, requestId:null, notifications:[], repResponded:false, repRealQuote:null, repNote:null, rejected:false, rejectReason:null, rejectMsg:null, tlCurrentIndex:-1, tlNotes:{}, tlFiles:{}, repLoggedIn:false, repEmail:null, repRecordId:null, receipt:null, faqClientSeen:{}, faqRepSeen:{}, repVerifType:null, repVerifStatus:{}, supplierQuoteAttached:false, repAvailable:true, repMinOrder:0, clientRating:null, pendingStars:0, incotermKnowledge:'unknown', incoterm:'FOB' };
 
 // ---------------------------------------------------------------------
 // NOTIFICACIONES (registro tipo correo) + SOPORTE HUMANO
@@ -165,9 +165,10 @@ function renderRepLoginGate(mode){
         <div><label class="field-label">Nombre de la agencia / representante</label><input type="text" id="rep_auth_name" placeholder="Ej. Aduanas Cordillera S.A.S."></div>
         <div><label class="field-label">Tipo</label>
           <select id="rep_auth_type">
-            <option value="agencia">Agencia de aduanas</option>
-            <option value="natural">Persona natural con registro de importador</option>
-            <option value="trading">Trading company / comercializadora</option>
+            <option value="agencia_aduanas">Agencia de aduanas (declara ante la DIAN)</option>
+            <option value="agente_sourcing">Agente de sourcing (negocia con el proveedor, no declara)</option>
+            <option value="agente_carga">Agente de carga / freight forwarder</option>
+            <option value="trading_company">Trading company / comercializadora (importa y revende nacionalizado)</option>
           </select>
         </div>
         <div><label class="field-label">NIT o cédula</label><input type="text" id="rep_auth_nit" placeholder="900.123.456-7"></div>
@@ -182,8 +183,13 @@ function renderRepLoginGate(mode){
     </div>
   `;
 }
+// Los 4 roles legales que puede tener un representante en la plataforma.
+// Ojo: "agencia de aduanas" es la única figura que la ley obliga a ser
+// persona jurídica y a estar habilitada ante la DIAN para declarar
+// importaciones — por norma NO puede además hacer de representante
+// comercial del proveedor. Por eso son roles separados, no uno genérico.
 const VERIF_STEPS_BY_TYPE = {
-  agencia: [
+  agencia_aduanas: [
     { k:'identidad', label:'Identidad legal (NIT + Cámara de Comercio / RUES)', auto:true },
     { k:'licencia', label:'Licencia de agencia de aduanas activa ante la DIAN', auto:false },
     { k:'poliza', label:'Vigencia de la póliza de cumplimiento', auto:false },
@@ -191,14 +197,19 @@ const VERIF_STEPS_BY_TYPE = {
     { k:'antecedentes', label:'Consulta en listas restrictivas (SARLAFT / UIAF)', auto:false },
     { k:'humana', label:'Verificación humana (llamada o videollamada)', auto:false }
   ],
-  natural: [
-    { k:'identidad', label:'Identidad legal (cédula)', auto:true },
-    { k:'licencia', label:'RUT con registro de importador activo', auto:false },
+  agente_sourcing: [
+    { k:'identidad', label:'Identidad legal (cédula o NIT)', auto:true },
     { k:'cuenta', label:'Titularidad de la cuenta bancaria', auto:false },
     { k:'antecedentes', label:'Consulta en listas restrictivas (SARLAFT / UIAF)', auto:false },
     { k:'humana', label:'Verificación humana (llamada o videollamada)', auto:false }
   ],
-  trading: [
+  agente_carga: [
+    { k:'identidad', label:'Identidad legal (cédula o NIT)', auto:true },
+    { k:'cuenta', label:'Titularidad de la cuenta bancaria', auto:false },
+    { k:'antecedentes', label:'Consulta en listas restrictivas (SARLAFT / UIAF)', auto:false },
+    { k:'humana', label:'Verificación humana (llamada o videollamada)', auto:false }
+  ],
+  trading_company: [
     { k:'identidad', label:'Identidad legal (NIT + Cámara de Comercio / RUES)', auto:true },
     { k:'licencia', label:'RUT con registro de importador activo', auto:false },
     { k:'cuenta', label:'Titularidad de la cuenta bancaria', auto:false },
@@ -688,11 +699,10 @@ renderStepper();
 // STEP 1: PERFIL
 // ---------------------------------------------------------------------
 const STATUS_OPTS = [
-  { v:'natNoRut', t:'Es mi primera vez — no tengo idea de trámites', d:'No has hecho ningún trámite ante el gobierno para esto todavía. Tranquilo, la mayoría empieza así.' },
-  { v:'natRutNoImp', t:'Tengo RUT (para otra cosa) pero nunca he importado', d:'Facturas o tienes otro negocio, pero nunca has usado eso para traer productos del exterior.' },
-  { v:'natRutImp', t:'Ya he importado antes a mi nombre', d:'Ya hiciste el trámite que te habilita para esto (se llama "registro de importador") y puedes declarar tú mismo ante la DIAN.' },
-  { v:'empNew', t:'Tengo una empresa, pero nunca ha importado', d:'Tu empresa existe legalmente, pero es la primera vez que trae algo del exterior.' },
-  { v:'empExp', t:'Mi empresa ya importa seguido', d:'Ya tienen la experiencia y el trámite resuelto bajo la empresa.' }
+  { v:'sinRutNoQuiere', t:'No tengo RUT de importador y prefiero no tramitarlo', d:'No has hecho el trámite ante la DIAN para esto, y no te interesa ocuparte de eso por ahora.' },
+  { v:'sinRutDispuesto', t:'No tengo RUT de importador, pero estoy dispuesto a sacarlo', d:'Se puede tramitar como persona natural — no hace falta crear una empresa para esto.' },
+  { v:'conRutImportador', t:'Ya tengo RUT con actividad de importador', d:'Ya hiciste el trámite que te habilita a declarar tú mismo ante la DIAN (como persona natural o con tu empresa).' },
+  { v:'empresaImporta', t:'Tengo una empresa que ya importa', d:'Tu empresa ya tiene el trámite resuelto y ha importado antes.' }
 ];
 function renderStatusChoices(){
   $('statusChoices').innerHTML = STATUS_OPTS.map(o=>`
@@ -752,48 +762,79 @@ function renderSupplierGuide(){
 function setSupplier(v){ state.hasSupplier = v; renderSupplierChoices(); }
 renderSupplierChoices();
 
+// Camino A: el cliente importa a su propio nombre (con RUT de importador,
+// que puede ser como persona natural, sin crear empresa). Camino B: un
+// trading company ya importó y nacionalizó, y le vende al cliente como
+// una compra local normal — el cliente no necesita ningún trámite.
+const CAMINO_INFO = {
+  A: {
+    title: 'Camino A — Importar a tu nombre',
+    desc: 'Tú eres el importador, con tu propio RUT (puede ser como persona natural, sin crear una empresa). Te da más control y mejor margen, pero implica el trámite: RUT, declaración ante la DIAN, y —si tu FOB supera USD 1.000— una agencia de aduanas obligatoria por ley.',
+    step2: { title:'Elige tu agencia de aduanas y/o agente de sourcing', sub:'Vas a importar a tu nombre. Necesitas una agencia de aduanas para la declaración ante la DIAN, y si quieres ayuda negociando con el proveedor, un agente de sourcing aparte — son roles distintos por norma.' }
+  },
+  B: {
+    title: 'Camino B — Comprar ya nacionalizada',
+    desc: 'Un trading company importa y nacionaliza la mercancía a su nombre, y te la vende dentro de Colombia con factura de compra normal. No necesitas RUT de importador ni ningún trámite — legalmente es una compra nacional. A cambio, pagas un poco más (el margen del trading company).',
+    step2: { title:'Elige tu trading company', sub:'Estas empresas ya importan y nacionalizan por su cuenta — te venden el producto nacionalizado, sin que tengas que tramitar nada.' }
+  }
+};
+function decideCamino(){
+  const status = state.status;
+  if(status === 'sinRutNoQuiere') return 'B';
+  if(status === 'sinRutDispuesto') return 'ambos';
+  return 'A'; // conRutImportador o empresaImporta
+}
 function renderProfileResult(){
-  const status = state.status, freq = $('p_freq').value, value = $('p_value').value, cat = $('p_cat').value;
-  const isCompany = status==='empNew' || status==='empExp';
-  let path = 'A';
-  if(isCompany) path = 'C';
-  else if(status==='natRutImp' && freq!=='occasional') path = 'A';
-  else if(freq==='occasional' || value==='v1' || value==='v2') path='B';
-  else path='A';
-  state.path = path;
-
-  const titles = {
-    A:'Importar tú mismo, con RUT de importador',
-    B:'Comprar a través de un representante ya registrado como importador',
-    C: isCompany ? 'Continuar como empresa importadora' : 'Formalizar una empresa importadora'
-  };
-  const descs = {
-    A:'Ya tiene sentido tramitar tu RUT como obligado aduanero y traer la mercancía a tu propio nombre. Aun así, si tu embarque supera USD 1.000 FOB, la ley exige que trabajes con una agencia de aduanas.',
-    B:'Por tu frecuencia y valor actual, no compensa registrarte tú mismo todavía. Te conviene comprar a través de alguien que ya está habilitado como importador.',
-    C:'Al tratarse de una empresa, lo más ordenado es formalizar el proceso bajo tu figura empresarial, apoyándote en una agencia de aduanas para cada embarque.'
-  };
-  const step2Content = {
-    A:{ title:'Elige tu agencia de aduanas', sub:'Vas a importar a tu nombre. Necesitas un agente de aduanas para tramitar la declaración — aquí tienes opciones verificadas.' },
-    B:{ title:'Elige tu representante', sub:'Estas personas o agencias ya están registradas como importadoras y pueden nacionalizar la mercancía a su nombre y entregártela.' },
-    C:{ title:'Elige tu agencia de aduanas', sub:'Como empresa, tú declaras la importación — te acompaña una agencia de aduanas en cada embarque.' }
-  };
-  window.__step2Content = step2Content[path];
-
+  const status = state.status, value = $('p_value').value, cat = $('p_cat').value;
+  const recommendation = decideCamino();
   const box = $('profileResult');
   box.style.display = 'block';
-  box.innerHTML = `
-    <div class="card" style="border-color:var(--ink); background:var(--lime-tint);">
-      <span class="pill pill-accent">Recomendado</span>
-      <div class="section-title" style="margin-top:8px;">${titles[path]}</div>
-      <p style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin:0 0 14px;">Para importar <b>${cat.toLowerCase()}</b>. ${descs[path]}</p>
-      <button class="btn btn-primary btn-block" onclick="continueFromProfile()">Continuar →</button>
-    </div>
-  `;
+
+  if(recommendation === 'ambos'){
+    box.innerHTML = `
+      <div class="card" style="border-color:var(--ink);">
+        <span class="pill pill-warn">Tu caso admite dos caminos</span>
+        <div class="section-title" style="margin-top:8px;">Puedes elegir cómo traer ${cat.toLowerCase()}</div>
+        <p class="hint" style="margin-top:0;">No hay una única respuesta correcta — depende de si prefieres más control (y mejor margen) a cambio de un trámite propio, o cero papeleo a cambio de pagar un poco más.</p>
+      </div>
+      <div class="grid" style="margin-bottom:16px;">
+        <div class="card">
+          <div class="section-title">${CAMINO_INFO.A.title}</div>
+          <p style="font-size:13px; color:var(--ink-soft); line-height:1.6;">${CAMINO_INFO.A.desc}</p>
+          <button class="btn btn-outline btn-block" onclick="continueFromProfile('A')">Elegir Camino A →</button>
+        </div>
+        <div class="card">
+          <div class="section-title">${CAMINO_INFO.B.title}</div>
+          <p style="font-size:13px; color:var(--ink-soft); line-height:1.6;">${CAMINO_INFO.B.desc}</p>
+          <button class="btn btn-outline btn-block" onclick="continueFromProfile('B')">Elegir Camino B →</button>
+        </div>
+      </div>
+    `;
+  } else {
+    const info = CAMINO_INFO[recommendation];
+    let extraNote = '';
+    if(recommendation === 'A' && value === 'v1'){
+      extraNote = '<div class="hint" style="margin-top:10px;">Con un valor FOB bajo (menos de USD 1.000), la ley no te exige usar una agencia de aduanas — podrías declarar tú mismo. Aun así, muchos prefieren apoyarse en un agente de sourcing para la parte de negociar con el proveedor.</div>';
+    } else if(recommendation === 'A' && status === 'empresaImporta' && (value==='v2' || value==='v3')){
+      extraNote = '<div class="hint" style="margin-top:10px;">Como tu volumen todavía no llega a un contenedor completo, te conviene comparar agencias por su capacidad de consolidar carga (LCL) con otros importadores de tu misma ruta, no solo por precio.</div>';
+    }
+    box.innerHTML = `
+      <div class="card" style="border-color:var(--ink); background:var(--lime-tint);">
+        <span class="pill pill-accent">Recomendado</span>
+        <div class="section-title" style="margin-top:8px;">${info.title}</div>
+        <p style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin:0 0 6px;">Para importar <b>${cat.toLowerCase()}</b>. ${info.desc}</p>
+        ${extraNote}
+        <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="continueFromProfile('${recommendation}')">Continuar →</button>
+      </div>
+    `;
+  }
   box.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
-async function continueFromProfile(){
-  $('step2Title').textContent = window.__step2Content.title;
-  $('step2Sub').textContent = window.__step2Content.sub;
+async function continueFromProfile(camino){
+  state.path = camino;
+  const info = CAMINO_INFO[camino];
+  $('step2Title').textContent = info.step2.title;
+  $('step2Sub').textContent = info.step2.sub;
   renderCompanyBanner();
   goTo(1);
   $('repList').innerHTML = `<div class="waiting-box"><div class="dot-spinner"><span></span><span></span><span></span></div>Cargando representantes…</div>`;
@@ -803,7 +844,7 @@ async function continueFromProfile(){
   renderReps();
 }
 function renderCompanyBanner(){
-  $('companyBanner').style.display = (state.path==='C') ? 'block' : 'none';
+  $('companyBanner').style.display = (state.status==='empresaImporta') ? 'block' : 'none';
 }
 
 // ---------------------------------------------------------------------
@@ -816,7 +857,7 @@ let compareSelection = [];
 let activeFilter = 'Todos';
 
 function mapRepFromDb(r){
-  const typeLabels = { agencia:'Agencia de aduanas', natural:'Persona natural con registro de importador', trading:'Trading company / comercializadora' };
+  const typeLabels = { agencia_aduanas:'Agencia de aduanas', agente_sourcing:'Agente de sourcing', agente_carga:'Agente de carga / freight forwarder', trading_company:'Trading company / comercializadora' };
   const commission = r.commission_type === 'flat'
     ? `USD ${r.commission_value ?? 0} flat`
     : `${r.commission_value ?? 1}% del FOB`;
@@ -890,7 +931,11 @@ async function reorderPast(id){
   if(el) el.classList.add('active');
   generateQuote();
 }
-function currentReps(){ return state.path==='B' ? allReps : allReps.filter(r=>r.repType==='agencia'); }
+function currentReps(){
+  return state.path==='B'
+    ? allReps.filter(r=>r.repType==='trading_company')
+    : allReps.filter(r=>r.repType==='agencia_aduanas' || r.repType==='agente_sourcing' || r.repType==='agente_carga');
+}
 function allTags(){ return ['Todos', ...new Set(currentReps().flatMap(r=>r.tags))]; }
 function renderFilters(){
   $('repFilters').innerHTML = allTags().map(f=>`
@@ -900,9 +945,9 @@ function renderFilters(){
 function setFilter(f){ activeFilter=f; renderFilters(); renderReps(); }
 function renderReps(){
   const list = currentReps().filter(r=> activeFilter==='Todos' || r.tags.includes(activeFilter));
-  const actionLabel = state.path==='B' ? 'Cotizar con este representante' : 'Cotizar con esta agencia';
+  const actionLabel = state.path==='B' ? 'Pedir este producto' : 'Cotizar con este representante';
   if(list.length === 0){
-    $('repList').innerHTML = `<div class="banner">Todavía no hay representantes reales registrados${state.path!=='B' ? ' de tipo agencia de aduanas' : ''} en la plataforma. Cuando se registren y queden disponibles, van a aparecer aquí automáticamente.</div>`;
+    $('repList').innerHTML = `<div class="banner">Todavía no hay ${state.path==='B' ? 'trading companies' : 'representantes'} reales registrados en la plataforma para este camino. Cuando se registren y queden disponibles, van a aparecer aquí automáticamente.</div>`;
     renderCompareBar();
     return;
   }
@@ -919,7 +964,7 @@ function renderReps(){
           <span class="pill ${allVerified?'pill-accent':'pill-warn'}">${allVerified?'✓ Verificado':'⏳ En validación'}</span>
           <details style="margin-top:6px;">
             <summary style="font-size:11.5px; color:var(--ink-soft); cursor:pointer; text-decoration:underline;">¿Qué verificamos?</summary>
-            <p class="hint" style="margin-top:6px;">Identidad legal (NIT/Cámara de Comercio), ${state.path==='B' ? 'registro de importador activo' : 'licencia de agencia de aduanas vigente ante la DIAN'}, titularidad de su cuenta bancaria y antecedentes en listas restrictivas.${r.bank ? ' Última reverificación: '+r.bank.verifiedDate+'.' : ' Aún en proceso de verificación.'}</p>
+            <p class="hint" style="margin-top:6px;">Identidad legal, ${r.repType==='agencia_aduanas' ? 'licencia de agencia de aduanas vigente ante la DIAN' : r.repType==='trading_company' ? 'RUT con registro de importador activo' : 'antecedentes comerciales'}, titularidad de su cuenta bancaria y antecedentes en listas restrictivas.${r.bank ? ' Última reverificación: '+r.bank.verifiedDate+'.' : ' Aún en proceso de verificación.'}</p>
           </details>
         </div>
       </div>
