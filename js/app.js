@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-let state = { status:'sinRutNoQuiere', hasSupplier:'yes', path:'B', verif:'basic', selectedRepId:null, mode:'AIR', paid:false, maxReached:0, loggedIn:false, accountEmail:null, accountId:null, quoteRequestDbId:null, lastQuote:null, preliminaryQuote:null, groupFreightOverride:null, compareMode:false, trmAtQuote:null, priceLocked:false, contactEmail:null, contactWhatsapp:null, requestId:null, notifications:[], repResponded:false, repRealQuote:null, repNote:null, rejected:false, rejectReason:null, rejectMsg:null, tlCurrentIndex:-1, tlNotes:{}, tlFiles:{}, repLoggedIn:false, repEmail:null, repRecordId:null, receipt:null, faqClientSeen:{}, faqRepSeen:{}, repVerifType:null, repVerifStatus:{}, supplierQuoteAttached:false, repAvailable:true, repMinOrder:0, clientRating:null, pendingStars:0, incotermKnowledge:'unknown', incoterm:'FOB' };
+let state = { status:'sinRutNoQuiere', hasSupplier:'yes', path:'B', verif:'basic', selectedRepId:null, selectedProduct:null, mode:'AIR', paid:false, maxReached:0, loggedIn:false, accountEmail:null, accountId:null, quoteRequestDbId:null, lastQuote:null, preliminaryQuote:null, groupFreightOverride:null, compareMode:false, trmAtQuote:null, priceLocked:false, contactEmail:null, contactWhatsapp:null, requestId:null, notifications:[], repResponded:false, repRealQuote:null, repNote:null, rejected:false, rejectReason:null, rejectMsg:null, tlCurrentIndex:-1, tlNotes:{}, tlFiles:{}, repLoggedIn:false, repEmail:null, repRecordId:null, receipt:null, faqClientSeen:{}, faqRepSeen:{}, repVerifType:null, repVerifStatus:{}, supplierQuoteAttached:false, repAvailable:true, repMinOrder:0, clientRating:null, pendingStars:0, incotermKnowledge:'unknown', incoterm:'FOB' };
 
 // ---------------------------------------------------------------------
 // NOTIFICACIONES (registro tipo correo) + SOPORTE HUMANO
@@ -364,6 +364,7 @@ function showRepPortalContent(){
   $('repPortalContent').style.display = 'block';
   renderRepVerificationChecklist();
   renderAvailabilityPanel();
+  renderRepCatalogPanel();
   renderRepQueue();
   renderRepShipmentPanel();
   initFaqDeck('repFaqDeck', REP_FAQS, 'faqRepSeen', 'Representante preparado');
@@ -393,6 +394,77 @@ function toggleAvailability(){
   state.repAvailable = !state.repAvailable;
   renderAvailabilityPanel();
   renderRepQueue();
+}
+// Solo las trading companies venden por catálogo (Camino B) — el resto de
+// roles responde solicitudes con valores reales, no publica productos.
+let ownProducts = [];
+async function renderRepCatalogPanel(){
+  const box = $('repCatalogBox');
+  if(!box) return;
+  if(state.repVerifType !== 'trading_company'){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = 'block';
+  box.innerHTML = `<div class="card"><div class="section-title">Mi catálogo</div><div class="hint">Cargando…</div></div>`;
+  const { data, error } = await supabaseClient
+    .from('products').select('*').eq('representative_id', state.repRecordId).order('created_at', {ascending:false});
+  if(error){ box.innerHTML = `<div class="card"><div class="section-title">Mi catálogo</div><div class="hint">No se pudo cargar tu catálogo: ${error.message}</div></div>`; return; }
+  ownProducts = data || [];
+  renderOwnProductsList();
+}
+function renderOwnProductsList(){
+  const box = $('repCatalogBox');
+  box.innerHTML = `
+    <div class="card">
+      <div class="section-title">Mi catálogo</div>
+      <p class="hint" style="margin-top:0;">Los clientes de Camino B ven aquí tus productos ya nacionalizados, con precio fijo. Publica los que tengas disponibles.</p>
+      ${ownProducts.length===0 ? `<div class="hint">Todavía no has publicado productos.</div>` : ownProducts.map(p=>`
+        <div class="card tight" style="margin-top:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:700; font-size:13px;">${p.name} ${p.active?'':'<span class="pill pill-warn">Pausado</span>'}</div>
+              <div class="hint" style="margin:2px 0 0;">${fmtUsd(Number(p.price_usd)||0)} / ${p.unit}${p.stock!=null ? ' · '+p.stock+' disponibles':''}</div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="toggleProductActive('${p.id}', ${!p.active})">${p.active?'Pausar':'Reactivar'}</button>
+          </div>
+        </div>
+      `).join('')}
+      <div style="margin-top:14px; padding-top:14px; border-top:1px dashed var(--line);">
+        <div class="section-title" style="margin-top:0;">Publicar nuevo producto</div>
+        <div class="grid">
+          <div><label class="field-label">Nombre</label><input type="text" id="np_name" placeholder="Ej. Filtros de aceite automotriz"></div>
+          <div><label class="field-label">Precio (USD)</label><input type="number" id="np_price" placeholder="Ej. 4.50"></div>
+          <div><label class="field-label">Unidad</label><input type="text" id="np_unit" value="unidad"></div>
+          <div><label class="field-label">Stock disponible (opcional)</label><input type="number" id="np_stock" placeholder="Ej. 200"></div>
+        </div>
+        <label class="field-label" style="margin-top:10px;">Descripción (opcional)</label>
+        <textarea id="np_desc" rows="2"></textarea>
+        <button class="btn btn-primary" style="margin-top:10px;" onclick="addProduct()">+ Publicar producto</button>
+        <div id="np_error" class="hint" style="color:var(--danger); display:none;"></div>
+      </div>
+    </div>
+  `;
+}
+async function addProduct(){
+  const name = $('np_name').value.trim();
+  const price = parseFloat($('np_price').value);
+  const unit = $('np_unit').value.trim() || 'unidad';
+  const stockVal = $('np_stock').value.trim();
+  const desc = $('np_desc').value.trim();
+  const errBox = $('np_error');
+  errBox.style.display = 'none';
+  if(!name || !(price>0)){ errBox.textContent = 'Ingresa un nombre y un precio válido.'; errBox.style.display = 'block'; return; }
+  const { error } = await supabaseClient.from('products').insert({
+    representative_id: state.repRecordId,
+    name, price_usd: price, unit,
+    stock: stockVal ? parseInt(stockVal) : null,
+    description: desc || null
+  });
+  if(error){ errBox.textContent = 'No se pudo publicar: ' + error.message; errBox.style.display = 'block'; return; }
+  await renderRepCatalogPanel();
+}
+async function toggleProductActive(id, makeActive){
+  const { error } = await supabaseClient.from('products').update({ active: makeActive }).eq('id', id);
+  if(error){ alert('No se pudo actualizar el producto: ' + error.message); return; }
+  await renderRepCatalogPanel();
 }
 async function repLogout(){
   if(supabaseClient) await supabaseClient.auth.signOut();
@@ -463,6 +535,10 @@ function openRepForm(id){
   if(!row){ alert('No se encontró esa solicitud — puede que ya haya sido respondida desde otra sesión.'); return; }
   repOpenRequest = row;
   $('repForm').style.display = 'block';
+  if(row.product_id){
+    renderCatalogRepForm(row);
+    return;
+  }
   const q = row.preliminary_quote || {};
   $('repForm').innerHTML = `
     ${getClientContextHtml(row)}
@@ -511,6 +587,56 @@ function openRepForm(id){
   `;
   updateRRTotal();
   $('repForm').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+function renderCatalogRepForm(row){
+  const q = row.preliminary_quote || {};
+  $('repForm').innerHTML = `
+    <div class="card" style="background:var(--paper); border-style:dashed;">
+      <div class="section-title">Datos del cliente</div>
+      <div class="line-item"><span class="lbl">Contacto</span><span class="val" style="font-family:'Inter',sans-serif;">${row.contact_email}${row.contact_whatsapp ? ' · '+row.contact_whatsapp : ''}</span></div>
+      <div class="hint" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">Pedido creado el ${new Date(row.created_at).toLocaleString('es-CO',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}.</div>
+    </div>
+    <div class="card">
+      <div class="section-title">Pedido de catálogo</div>
+      <div class="line-item"><span class="lbl">Producto</span><span class="val">${row.product_name || ''}</span></div>
+      <div class="line-item"><span class="lbl">Cantidad</span><span class="val">${row.quantity || 0}</span></div>
+      <div class="line-item"><span class="lbl">Precio unitario</span><span class="val">${fmtUsd(q.unitPrice||0)}</span></div>
+      <div class="line-item total"><span class="lbl">Total</span><span class="val">${fmtUsd(q.total || row.fob_usd || 0)}</span></div>
+      <p class="hint">Este precio ya lo fijaste tú en tu catálogo — solo confirma que tienes stock disponible para despachar este pedido.</p>
+      <label class="field-label">Nota para el cliente (opcional)</label>
+      <textarea id="rep_note" rows="2" placeholder="Ej. Disponible, despacho en 2 días hábiles."></textarea>
+      <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="submitCatalogConfirm()">✓ Confirmar disponibilidad</button>
+        <button class="btn btn-outline" style="border-color:var(--danger); color:var(--danger);" onclick="toggleRejectBox()">✗ Sin stock / rechazar</button>
+      </div>
+      <div id="rrRejectBox" style="display:none; margin-top:16px; padding-top:16px; border-top:1px dashed var(--line);">
+        <label class="field-label">Motivo</label>
+        <select id="rr_reject_reason">
+          <option>Sin stock suficiente</option>
+          <option>Producto descontinuado</option>
+          <option>Zona de entrega no cubierta</option>
+          <option>Otro motivo</option>
+        </select>
+        <label class="field-label" style="margin-top:10px;">Mensaje para el cliente</label>
+        <textarea id="rr_reject_msg" rows="2" placeholder="Explica brevemente por qué, o qué necesitarías para reconsiderar."></textarea>
+        <button class="btn btn-secondary" style="margin-top:10px;" onclick="submitRejection()">Confirmar rechazo</button>
+      </div>
+    </div>
+  `;
+  $('repForm').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+async function submitCatalogConfirm(){
+  if(!repOpenRequest) return;
+  const repNote = $('rep_note').value;
+  const confirmedQuote = repOpenRequest.preliminary_quote;
+  const { error } = await supabaseClient.from('quote_requests').update({
+    status: 'responded', confirmed_quote: confirmedQuote, rep_note: repNote, updated_at: new Date().toISOString()
+  }).eq('id', repOpenRequest.id);
+  if(error){ alert('No se pudo confirmar el pedido: ' + error.message); return; }
+  logNotification(repOpenRequest.contact_email, `Confirmaste el pedido de ${repOpenRequest.folio}`, 'Tu cliente ya puede ver la confirmación y proceder con el pago.');
+  $('repForm').innerHTML = `<div class="banner">✓ Confirmaste disponibilidad. El cliente ya puede verlo y proceder con el pago.</div>`;
+  repOpenRequest = null;
+  renderRepQueue();
 }
 function toggleRejectBox(){
   const box = $('rrRejectBox');
@@ -838,8 +964,14 @@ async function continueFromProfile(camino){
   $('step2Sub').textContent = info.step2.sub;
   renderCompanyBanner();
   goTo(1);
-  $('repList').innerHTML = `<div class="waiting-box"><div class="dot-spinner"><span></span><span></span><span></span></div>Cargando representantes…</div>`;
   $('repFilters').innerHTML = '';
+  if(camino === 'B'){
+    $('repList').innerHTML = `<div class="waiting-box"><div class="dot-spinner"><span></span><span></span><span></span></div>Cargando catálogo…</div>`;
+    await Promise.all([loadRepresentatives(), loadProducts()]);
+    renderCatalog();
+    return;
+  }
+  $('repList').innerHTML = `<div class="waiting-box"><div class="dot-spinner"><span></span><span></span><span></span></div>Cargando representantes…</div>`;
   await loadRepresentatives();
   renderFilters();
   renderReps();
@@ -887,6 +1019,127 @@ async function loadRepresentatives(){
     .eq('available', true);
   if(error){ console.error('No se pudieron cargar los representantes:', error); allReps = []; return; }
   allReps = (data || []).map(mapRepFromDb);
+}
+
+// ---------------------------------------------------------------------
+// CAMINO B: catálogo de productos ya nacionalizados (trading companies)
+// ---------------------------------------------------------------------
+let allProducts = [];
+async function loadProducts(){
+  if(!supabaseClient){ allProducts = []; return; }
+  const { data, error } = await supabaseClient
+    .from('products')
+    .select('*, representatives(id, business_name, rating, available)')
+    .eq('active', true);
+  if(error){ console.error('No se pudieron cargar los productos del catálogo:', error); allProducts = []; return; }
+  allProducts = (data || [])
+    .filter(p => p.representatives && p.representatives.available)
+    .map(p => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      priceUsd: Number(p.price_usd) || 0,
+      unit: p.unit || 'unidad',
+      stock: p.stock,
+      representativeId: p.representative_id,
+      businessName: p.representatives.business_name || 'Trading company',
+      rating: p.representatives.rating ? Number(p.representatives.rating).toFixed(1) : 'Nuevo'
+    }));
+}
+function renderCatalog(){
+  if(allProducts.length === 0){
+    $('repList').innerHTML = `<div class="banner">Todavía no hay productos reales publicados en el catálogo de trading companies. Cuando se registren y publiquen productos, van a aparecer aquí automáticamente.</div>`;
+    return;
+  }
+  $('repList').innerHTML = allProducts.map(p=>{
+    const init = (p.businessName || '??').replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ ]/g,'').trim().split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase() || '??';
+    return `
+    <div class="rep-card">
+      <div class="rep-top">
+        <div class="rep-avatar">${init}</div>
+        <div style="flex:1;">
+          <div class="rep-name">${p.name}</div>
+          <div class="rep-type">Vendido por ${p.businessName}</div>
+          <span class="pill pill-ok">✓ Ya nacionalizado</span>
+        </div>
+      </div>
+      ${p.description ? `<p class="hint" style="margin:8px 0 0;">${p.description}</p>` : ''}
+      <div class="rep-meta-row">
+        <span>⭐ ${p.rating}</span><span>${fmtUsd(p.priceUsd)} / ${p.unit}</span>${p.stock!=null ? `<span>${p.stock} disponibles</span>` : ''}
+      </div>
+      <div class="rep-actions">
+        <button class="btn btn-primary btn-sm" onclick="chooseProduct('${p.id}')">Pedir este producto</button>
+      </div>
+    </div>
+  `;
+  }).join('');
+}
+function chooseProduct(id){
+  const p = allProducts.find(x=>x.id===id);
+  if(!p) return;
+  state.selectedProduct = p;
+  state.selectedRepId = p.representativeId;
+  state.compareMode = false;
+  $('quoteRepName').textContent = p.businessName;
+  goTo(2);
+  renderCatalogOrderForm();
+}
+function renderCatalogOrderForm(){
+  const p = state.selectedProduct;
+  $('sourcingBlock').style.display = 'none';
+  $('quoteFormBlock').style.display = 'none';
+  $('quoteResult').style.display = 'none';
+  const box = $('catalogOrderBlock');
+  box.style.display = 'block';
+  box.innerHTML = `
+    <div class="card">
+      <div class="section-title">${p.name}</div>
+      <p class="hint" style="margin-top:0;">Vendido y despachado por <b>${p.businessName}</b> — ya nacionalizado, listo para entregar dentro de Colombia. No necesitas RUT ni ningún trámite de importación para este pedido.</p>
+      ${p.description ? `<p style="font-size:13px; color:var(--ink-soft); line-height:1.6;">${p.description}</p>` : ''}
+      <div class="line-item"><span class="lbl">Precio por ${p.unit}</span><span class="val">${fmtUsd(p.priceUsd)}</span></div>
+      ${p.stock!=null ? `<div class="line-item"><span class="lbl">Disponibles</span><span class="val">${p.stock}</span></div>` : ''}
+      <label class="field-label" style="margin-top:12px;">¿Cuántas unidades quieres pedir?</label>
+      <input type="number" id="cat_qty" min="1" value="1" oninput="updateCatalogTotal()">
+      <div id="catalogTotalPreview" class="hint" style="margin-top:10px; font-weight:700; color:var(--ink);"></div>
+      <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="generateCatalogOrder()">Generar pedido</button>
+    </div>
+  `;
+  updateCatalogTotal();
+}
+function updateCatalogTotal(){
+  const p = state.selectedProduct;
+  if(!p) return;
+  const qty = parseInt($('cat_qty').value) || 0;
+  const total = p.priceUsd * qty;
+  $('catalogTotalPreview').textContent = qty>0 ? `Total: ${fmtUsd(total)}  (${fmtUsd(p.priceUsd)} × ${qty})` : 'Ingresa una cantidad válida.';
+}
+function generateCatalogOrder(){
+  const p = state.selectedProduct;
+  const qty = parseInt($('cat_qty').value) || 0;
+  if(!p || qty<=0){ alert('Ingresa una cantidad válida.'); return; }
+  const total = p.priceUsd * qty;
+  const q = { total, fob: total, unitPrice: p.priceUsd, qty, kind:'catalog' };
+  state.lastQuote = q;
+  state.preliminaryQuote = q;
+  $('quoteResult').style.display = 'block';
+  $('quoteResult').innerHTML = `
+    <div class="card">
+      <div class="quote-stage-label">
+        <span class="pill pill-warn">Precio de catálogo</span>
+        <span class="hint" style="margin:0;">Fijado por ${p.businessName}</span>
+      </div>
+      <div class="section-title">${p.name}</div>
+      <div class="line-item"><span class="lbl">Precio por ${p.unit}</span><span class="val">${fmtUsd(p.priceUsd)}</span></div>
+      <div class="line-item"><span class="lbl">Cantidad</span><span class="val">${qty}</span></div>
+      <div class="line-item total"><span class="lbl">Total (ya nacionalizado)</span><span class="val">${fmtUsd(total)}</span></div>
+      <div class="hint">Este precio ya incluye la nacionalización — ${p.businessName} solo debe confirmar que tiene stock disponible para tu pedido.</div>
+      <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="sendToRepForConfirmation()">Enviar a <span id="quoteRepNameInline">${p.businessName}</span> para confirmar</button>
+        <button class="btn btn-outline" onclick="generateCatalogOrder()">Ajustar cantidad</button>
+      </div>
+    </div>
+  `;
+  $('quoteResult').scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
 const ORDER_HISTORY = [
@@ -1049,6 +1302,7 @@ function chooseRep(id){
   state.compareMode = false;
   const r = repById(id);
   $('quoteRepName').textContent = r.name;
+  $('catalogOrderBlock').style.display = 'none';
   $('sourcingBlock').style.display = state.hasSupplier==='no' ? 'block' : 'none';
   $('quoteFormBlock').style.display = state.hasSupplier==='no' ? 'none' : 'block';
   goTo(2);
@@ -1428,27 +1682,46 @@ async function proceedToWaiting(){
   const rep = repById(state.selectedRepId);
   if(!rep){ alert('Elige un representante real antes de continuar.'); goTo(1); return; }
   if(!state.quoteRequestDbId){
-    const q = state.preliminaryQuote || computeQuoteLines();
     const folio = 'SOL-' + Math.floor(3000+Math.random()*900);
-    const payload = {
-      folio,
-      client_id: state.accountId || null,
-      contact_email: state.contactEmail,
-      contact_whatsapp: state.contactWhatsapp || null,
-      representative_id: rep.id,
-      status: 'pending',
-      product_name: $('q_prod').value,
-      quantity: parseInt($('q_qty').value)||0,
-      fob_usd: parseFloat($('q_fob').value)||0,
-      weight_kg: parseFloat($('q_weight').value)||0,
-      volume_cbm: parseFloat($('q_cbm').value)||0,
-      boxes: parseInt($('q_boxes').value)||0,
-      shipping_mode: state.mode,
-      verification_level: state.verif,
-      incoterm: state.incoterm,
-      price_locked: state.priceLocked,
-      preliminary_quote: q
-    };
+    let payload;
+    if(state.path === 'B'){
+      const p = state.selectedProduct;
+      const q = state.preliminaryQuote;
+      payload = {
+        folio,
+        client_id: state.accountId || null,
+        contact_email: state.contactEmail,
+        contact_whatsapp: state.contactWhatsapp || null,
+        representative_id: rep.id,
+        product_id: p.id,
+        status: 'pending',
+        product_name: p.name,
+        quantity: q.qty,
+        fob_usd: q.total,
+        preliminary_quote: q
+      };
+    } else {
+      const q = state.preliminaryQuote || computeQuoteLines();
+      payload = {
+        folio,
+        client_id: state.accountId || null,
+        contact_email: state.contactEmail,
+        contact_whatsapp: state.contactWhatsapp || null,
+        representative_id: rep.id,
+        status: 'pending',
+        product_name: $('q_prod').value,
+        quantity: parseInt($('q_qty').value)||0,
+        fob_usd: parseFloat($('q_fob').value)||0,
+        weight_kg: parseFloat($('q_weight').value)||0,
+        volume_cbm: parseFloat($('q_cbm').value)||0,
+        boxes: parseInt($('q_boxes').value)||0,
+        shipping_mode: state.mode,
+        verification_level: state.verif,
+        incoterm: state.incoterm,
+        price_locked: state.priceLocked,
+        preliminary_quote: q
+      };
+    }
     const { data, error } = await supabaseClient.from('quote_requests').insert(payload).select().single();
     if(error){ alert('No se pudo enviar tu solicitud: ' + error.message); return; }
     state.requestId = data.folio;
@@ -1521,6 +1794,7 @@ function backToMarketplaceAfterReject(){
 }
 
 function renderConfirmedQuote(){
+  if(state.path === 'B'){ renderCatalogConfirmedQuote(); return; }
   // Usa los valores reales que dejó el representante en su portal
   let q;
   if(state.repRealQuote){
@@ -1565,6 +1839,28 @@ function renderConfirmedQuote(){
   `;
 }
 
+function renderCatalogConfirmedQuote(){
+  const q = state.repRealQuote || state.lastQuote;
+  const p = state.selectedProduct;
+  const repName = $('quoteRepName').textContent;
+  state.lastQuote = q;
+  $('quoteResult').innerHTML = `
+    <div class="card" style="border-color:var(--ink);">
+      <div class="quote-stage-label">
+        <span class="pill pill-ok">✓ Confirmado por ${repName}</span>
+      </div>
+      <div class="section-title">${p ? p.name : 'Tu pedido'}</div>
+      ${state.repNote ? `<div class="hint" style="background:var(--paper); border-radius:8px; padding:10px 12px; margin-bottom:12px;">💬 "${state.repNote}" — ${repName}</div>` : ''}
+      <div class="line-item"><span class="lbl">Precio unitario</span><span class="val">${fmtUsd(q.unitPrice||0)}</span></div>
+      <div class="line-item"><span class="lbl">Cantidad</span><span class="val">${q.qty||0}</span></div>
+      <div class="line-item total"><span class="lbl">Total (ya nacionalizado)</span><span class="val">${fmtUsd(q.total||0)}</span></div>
+      <div class="hint" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">Además de esto, Conecta Importa cobra un <b>fee de activación de ${fmtUsd(getPlatformFee(q.total||0))}</b> (ejemplo, por definir) — es un cobro aparte de la plataforma, no de ${repName}.</div>
+      <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="handleAcceptConfirmed()">Aceptar pedido</button>
+      </div>
+    </div>
+  `;
+}
 async function markQuoteAccepted(){
   if(!supabaseClient || !state.quoteRequestDbId) return;
   const { error } = await supabaseClient.from('quote_requests')

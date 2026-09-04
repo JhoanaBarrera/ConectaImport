@@ -215,3 +215,48 @@ create policy "quote_requests: cliente puede aceptar" on quote_requests
 -- Notificaciones: cada quien ve solo las suyas
 create policy "notifications: ver las propias" on notifications
   for select using (auth.uid() = profile_id);
+
+-- ============================================================
+-- MIGRACIÓN: catálogo de productos para Camino B (trading companies)
+-- ------------------------------------------------------------
+-- Camino B es una compra local de mercancía ya nacionalizada — el
+-- trading company fija un precio fijo por producto de una vez, en vez
+-- de que el cliente arme una cotización de flete/aduana como en el
+-- Camino A. Esta tabla guarda ese catálogo.
+-- Cómo aplicar esta parte: pégala y corre en el SQL Editor de Supabase
+-- (ya lo hiciste antes con otras migraciones de este mismo archivo).
+-- ============================================================
+create table products (
+  id uuid primary key default gen_random_uuid(),
+  representative_id uuid not null references representatives(id) on delete cascade,
+  name text not null,
+  description text,
+  price_usd numeric not null,
+  unit text not null default 'unidad',
+  stock integer,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+alter table products enable row level security;
+
+-- Cualquiera puede ver los productos activos (catálogo público)
+create policy "products: visibles para todos" on products
+  for select using (active = true);
+-- El dueño del producto también puede ver los suyos aunque estén
+-- inactivos (para poder reactivarlos o editarlos desde su portal)
+create policy "products: ver los propios" on products
+  for select using (
+    representative_id in (select id from representatives where profile_id = auth.uid())
+  );
+create policy "products: crear el propio" on products
+  for insert with check (
+    representative_id in (select id from representatives where profile_id = auth.uid())
+  );
+create policy "products: editar el propio" on products
+  for update using (
+    representative_id in (select id from representatives where profile_id = auth.uid())
+  );
+
+-- Cada solicitud/pedido de Camino B queda ligado al producto de catálogo
+-- que lo originó (en Camino A esto queda en null — ahí no hay catálogo).
+alter table quote_requests add column product_id uuid references products(id);

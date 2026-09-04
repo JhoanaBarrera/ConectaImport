@@ -53,8 +53,8 @@ async function ensureRepresentative(session, profile){
     .from('representatives').select('*').eq('profile_id', session.user.id).maybeSingle();
   if(existing) return existing;
   const meta = session.user.user_metadata || {};
-  const repType = meta.rep_type || 'natural';
-  const steps = VERIF_STEPS_BY_TYPE[repType] || VERIF_STEPS_BY_TYPE.natural;
+  const repType = meta.rep_type || 'agencia_aduanas';
+  const steps = VERIF_STEPS_BY_TYPE[repType] || VERIF_STEPS_BY_TYPE.agencia_aduanas;
   const verificationStatus = {};
   steps.forEach(s => { verificationStatus[s.k] = !!s.auto; });
   const { data: created, error } = await supabaseClient
