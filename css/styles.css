@@ -93,12 +93,26 @@
   .field-label{font-size:11.5px; font-weight:600; color:var(--ink-soft); margin-bottom:5px; display:block; text-transform:uppercase; letter-spacing:.02em;}
   .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px;}
 
-  input[type=text],input[type=number],select,textarea{
+  input[type=text],input[type=number],input[type=email],input[type=password],input[type=tel],select,textarea{
     width:100%; padding:9px 11px; border:1px solid var(--line-strong); border-radius:var(--radius-sm);
     font-family:'Inter',sans-serif; font-size:13.5px; color:var(--ink); background:#fff;
   }
   input:focus,select:focus,textarea:focus{outline:none; border-color:var(--ink); box-shadow:0 0 0 3px var(--trust-tint);}
   .hint{font-size:12px; color:var(--ink-soft); line-height:1.55; margin-top:6px;}
+
+  .pw-field{position:relative;}
+  .pw-field input{padding-right:38px;}
+  .pw-toggle{position:absolute; right:0; top:0; bottom:0; width:36px; background:none; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--ink-soft); padding:0;}
+  .pw-toggle svg{width:18px;height:18px;}
+  .auth-card .pw-toggle{color:#9CA3AF;}
+  .auth-card .pw-toggle:hover{color:#fff;}
+  .pw-toggle:hover{color:var(--ink);}
+
+  .form-section{margin-top:16px; padding-top:14px; border-top:1px dashed var(--line);}
+  .form-section:first-of-type{margin-top:0; padding-top:0; border-top:none;}
+  .form-section-title{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin-bottom:10px;}
+  .auth-card .form-section{border-top-color:rgba(255,255,255,.12);}
+  .auth-card .form-section-title{color:#9CA3AF;}
 
   .btn{font-family:'Inter',sans-serif; font-weight:700; font-size:13.5px; border:none; border-radius:var(--radius-sm); padding:11px 18px; cursor:pointer; display:inline-flex; align-items:center; gap:7px; transition:transform .1s ease, opacity .1s ease;}
   .btn:active{transform:scale(.98);}

@@ -189,7 +189,7 @@
     </div>
 
 
-    <div class="card tight" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleHistory()">
+    <div class="card tight" id="historyCard" style="display:none; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleHistory()">
       <span style="font-size:13px; font-weight:600;">📦 Mis pedidos anteriores</span>
       <span class="hint" style="margin:0;">Volver a pedir en 1 clic →</span>
     </div>
@@ -204,8 +204,15 @@
             <option>Repuestos / autopartes</option>
             <option>Farma / dispositivos médicos</option>
             <option>Textil / confección</option>
+            <option>Calzado / marroquinería</option>
             <option>Electrónica / tecnología</option>
+            <option>Juguetes</option>
+            <option>Cosméticos / cuidado personal</option>
+            <option>Alimentos / suplementos</option>
             <option>Hogar / ferretería</option>
+            <option>Muebles / decoración</option>
+            <option>Maquinaria / equipos industriales</option>
+            <option>Joyería / bisutería</option>
             <option>Otro</option>
           </select>
         </div>
@@ -331,6 +338,41 @@
 
       <div class="card">
         <div class="section-title" style="margin-top:0;">Ruta de importación</div>
+        <div class="grid">
+          <div><label class="field-label">Ciudad de origen (China)</label>
+            <select id="q_originCity">
+              <option value="Shenzhen">Shenzhen</option>
+              <option value="Guangzhou">Guangzhou</option>
+              <option value="Ningbo">Ningbo</option>
+              <option value="Shanghai">Shanghai</option>
+              <option value="Qingdao">Qingdao</option>
+              <option value="Yiwu">Yiwu</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div><label class="field-label">Puerto / aeropuerto de llegada</label>
+            <select id="q_destPort" onchange="updateInlandSuggestion()">
+              <option value="Cartagena">Cartagena (marítimo)</option>
+              <option value="Buenaventura">Buenaventura (marítimo)</option>
+              <option value="Barranquilla">Barranquilla (marítimo)</option>
+              <option value="Bogotá">Bogotá — El Dorado (aéreo)</option>
+            </select>
+          </div>
+          <div><label class="field-label">Ciudad final de entrega</label>
+            <select id="q_finalCity" onchange="updateInlandSuggestion()">
+              <option value="Cartagena">Cartagena</option>
+              <option value="Buenaventura">Buenaventura</option>
+              <option value="Barranquilla">Barranquilla</option>
+              <option value="Bogotá">Bogotá</option>
+              <option value="Medellín">Medellín</option>
+              <option value="Cali">Cali</option>
+              <option value="Otra">Otra ciudad</option>
+            </select>
+          </div>
+          <div><label class="field-label">Transporte interno hasta tu bodega (USD)</label><input type="number" id="q_inlandFee" value="0"></div>
+        </div>
+        <div class="hint" id="routeHint" style="margin-top:0;"></div>
+        <div style="height:14px;"></div>
         <div id="modeRecommend" class="choice-list"></div>
         <div class="hint" id="modeNote"></div>
         <div class="hint" id="courierLimitsNote" style="margin-top:8px;"></div>

@@ -1,4 +1,20 @@
 const $ = id => document.getElementById(id);
+
+// ---------------------------------------------------------------------
+// Campo de contraseña con ícono de mostrar/ocultar, reutilizable en los
+// 4 formularios de login/registro (cliente y representante).
+// ---------------------------------------------------------------------
+const EYE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const EYE_OFF_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 5c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+function pwFieldHtml(id, autocomplete, placeholder){
+  return `<div class="pw-field"><input type="password" id="${id}" autocomplete="${autocomplete}" placeholder="${placeholder}"><button type="button" class="pw-toggle" tabindex="-1" onclick="togglePasswordVisibility('${id}', this)">${EYE_ICON}</button></div>`;
+}
+function togglePasswordVisibility(inputId, btn){
+  const input = $(inputId);
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  btn.innerHTML = showing ? EYE_ICON : EYE_OFF_ICON;
+}
 let state = { status:'sinRutNoQuiere', hasSupplier:'yes', path:'B', verif:'basic', selectedRepId:null, selectedProduct:null, mode:'AIR', paid:false, maxReached:0, loggedIn:false, accountEmail:null, accountId:null, quoteRequestDbId:null, lastQuote:null, preliminaryQuote:null, groupFreightOverride:null, compareMode:false, trmAtQuote:null, priceLocked:false, contactEmail:null, contactWhatsapp:null, requestId:null, notifications:[], repResponded:false, repRealQuote:null, repNote:null, rejected:false, rejectReason:null, rejectMsg:null, tlCurrentIndex:-1, tlNotes:{}, tlFiles:{}, repLoggedIn:false, repEmail:null, repRecordId:null, receipt:null, faqClientSeen:{}, faqRepSeen:{}, repVerifType:null, repVerifStatus:{}, supplierQuoteAttached:false, repAvailable:true, repMinOrder:0, clientRating:null, pendingStars:0, incotermKnowledge:'unknown', incoterm:'FOB' };
 
 // ---------------------------------------------------------------------
@@ -49,6 +65,7 @@ function enterApp(){
   $('landingScreen').style.display = 'none';
   $('appShell').style.display = 'block';
   updateAccountPillIfLogged();
+  updateHistoryCardVisibility();
   window.scrollTo(0,0);
 }
 function backToLanding(){
@@ -82,18 +99,29 @@ function openClientPortalGate(mode){
         <p style="font-size:12.5px; line-height:1.6; margin:0 0 14px;">
           Puedes explorar y cotizar sin cuenta. Inicia sesión si ya tienes una, regístrate, o entra como invitado — solo te pediremos crear cuenta cuando confirmes un pedido.
         </p>
-        <div class="grid">
-          ${isSignup ? `<div><label class="field-label">Nombre completo</label><input type="text" id="cl_gate_name" autocomplete="name" placeholder="Tu nombre"></div>` : ''}
-          <div><label class="field-label">Correo electrónico</label><input type="email" id="cl_gate_email" autocomplete="email" placeholder="tucorreo@ejemplo.com"></div>
-          <div><label class="field-label">Contraseña</label><input type="password" id="cl_gate_pass" autocomplete="${isSignup?'new-password':'current-password'}" placeholder="Mínimo 8 caracteres"></div>
+        <form onsubmit="return false;" autocomplete="on">
+        ${isSignup ? `
+        <div class="form-section">
+          <div class="form-section-title">Tus datos</div>
+          <div class="grid">
+            <div><label class="field-label">Nombre completo</label><input type="text" id="cl_gate_name" autocomplete="name" placeholder="Tu nombre"></div>
+          </div>
+        </div>` : ''}
+        <div class="form-section">
+          ${isSignup ? `<div class="form-section-title">Acceso</div>` : ''}
+          <div class="grid">
+            <div><label class="field-label">Correo electrónico</label><input type="email" id="cl_gate_email" autocomplete="email" placeholder="tucorreo@ejemplo.com"></div>
+            <div><label class="field-label">Contraseña</label>${pwFieldHtml('cl_gate_pass', isSignup?'new-password':'current-password', 'Mínimo 8 caracteres')}</div>
+          </div>
         </div>
         ${isSignup ? `
-        <label style="display:flex; align-items:flex-start; gap:8px; margin-top:12px; font-size:12px; color:#D4D6DC; cursor:pointer;">
+        <label style="display:flex; align-items:flex-start; gap:8px; margin-top:14px; font-size:12px; color:#D4D6DC; cursor:pointer;">
           <input type="checkbox" id="cl_gate_privacy" style="width:auto; margin-top:2px;">
           Acepto los <span style="text-decoration:underline; font-weight:600; color:var(--lime);" onclick="event.preventDefault(); openTermsPanel();">términos y condiciones</span> y la <span style="text-decoration:underline; font-weight:600; color:var(--lime);" onclick="event.preventDefault(); openPrivacyPanel();">política de tratamiento de datos personales</span>
         </label>` : ''}
         <div id="cl_gate_error" class="hint" style="color:#F0B4AE; display:none;"></div>
-        <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="clientGateSubmit('${mode}', this)">${isSignup ? 'Crear cuenta y entrar' : 'Iniciar sesión'}</button>
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top:14px;" onclick="clientGateSubmit('${mode}', this)">${isSignup ? 'Crear cuenta y entrar' : 'Iniciar sesión'}</button>
+        </form>
         <div class="hint" style="text-align:center; margin-top:10px; color:#B9BEC9;">${isSignup ? '¿Ya tienes cuenta?' : '¿Aún no tienes cuenta?'} <span style="color:var(--lime); font-weight:600; text-decoration:underline; cursor:pointer;" onclick="openClientPortalGate('${isSignup?'login':'signup'}')">${isSignup ? 'Inicia sesión' : 'Regístrate'}</span></div>
         <div class="hint" style="text-align:center; margin-top:6px;"><span style="text-decoration:underline; cursor:pointer; font-weight:600; color:var(--lime);" onclick="continueAsGuest()">Continuar como invitado →</span></div>
         <button class="btn btn-text btn-sm" style="margin-top:16px; display:block; margin-left:auto; margin-right:auto; color:#fff;" onclick="resetLandingView()">← Volver</button>
@@ -273,36 +301,56 @@ function renderRepLoginGate(mode){
       <p style="font-size:12.5px; line-height:1.6; margin:0 0 14px;">
         ${isSignup ? 'Regístrate con los datos legales de tu agencia o negocio — nada de esto te activa de inmediato, primero pasa por nuestro proceso de verificación.' : 'Ingresa con tu cuenta de representante para ver y responder solicitudes de clientes.'}
       </p>
-      <div class="grid">
-        ${isSignup ? `
-        <div><label class="field-label">Nombre de la agencia / representante</label><input type="text" id="rep_auth_name" autocomplete="organization" placeholder="Ej. Aduanas Cordillera S.A.S."></div>
-        <div><label class="field-label">Tipo</label>
-          <select id="rep_auth_type">
-            <option value="agencia_aduanas">Agencia de aduanas (declara ante la DIAN)</option>
-            <option value="agente_sourcing">Agente de sourcing (negocia con el proveedor, no declara)</option>
-            <option value="agente_carga">Agente de carga / freight forwarder</option>
-            <option value="trading_company">Trading company / comercializadora (importa y revende nacionalizado)</option>
-          </select>
-        </div>
-        <div><label class="field-label">NIT o cédula</label><input type="text" id="rep_auth_nit" placeholder="900.123.456-7"></div>
-        <div><label class="field-label">N° de licencia DIAN (si aplica)</label><input type="text" id="rep_auth_license" placeholder="Ej. RES-2024-00218"></div>
-        <div><label class="field-label">Figura tributaria</label>
-          <select id="rep_auth_legal_person">
-            <option value="juridica">Persona jurídica (empresa)</option>
-            <option value="natural">Persona natural</option>
-          </select>
-        </div>
-        ` : ''}
-        <div><label class="field-label">Correo electrónico</label><input type="email" id="rep_auth_email" autocomplete="email" placeholder="tucorreo@agencia.com"></div>
-        <div><label class="field-label">Contraseña</label><input type="password" id="rep_auth_pass" autocomplete="${isSignup?'new-password':'current-password'}" placeholder="Mínimo 8 caracteres"></div>
-      </div>
+      <form onsubmit="return false;" autocomplete="on">
       ${isSignup ? `
-      <label style="display:flex; align-items:flex-start; gap:8px; margin-top:12px; font-size:12px; color:#D4D6DC; cursor:pointer;">
+      <div class="form-section">
+        <div class="form-section-title">Datos de tu agencia o negocio</div>
+        <div class="grid">
+          <div><label class="field-label">Nombre de la agencia / representante</label><input type="text" id="rep_auth_name" autocomplete="organization" placeholder="Ej. Aduanas Cordillera S.A.S."></div>
+          <div><label class="field-label">Tipo</label>
+            <select id="rep_auth_type">
+              <option value="agencia_aduanas">Agencia de aduanas (declara ante la DIAN)</option>
+              <option value="agente_sourcing">Agente de sourcing (negocia con el proveedor, no declara)</option>
+              <option value="agente_carga">Agente de carga / freight forwarder</option>
+              <option value="trading_company">Trading company / comercializadora (importa y revende nacionalizado)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="form-section">
+        <div class="form-section-title">Identificación legal</div>
+        <div class="grid">
+          <div><label class="field-label">NIT o cédula</label><input type="text" id="rep_auth_nit" placeholder="900.123.456-7"></div>
+          <div><label class="field-label">N° de licencia DIAN (si aplica)</label><input type="text" id="rep_auth_license" placeholder="Ej. RES-2024-00218"></div>
+          <div><label class="field-label">Figura tributaria</label>
+            <select id="rep_auth_legal_person">
+              <option value="juridica">Persona jurídica (empresa)</option>
+              <option value="natural">Persona natural</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="form-section">
+        <div class="form-section-title">Acceso</div>
+        <div class="grid">
+          <div><label class="field-label">Correo electrónico</label><input type="email" id="rep_auth_email" autocomplete="email" placeholder="tucorreo@agencia.com"></div>
+          <div><label class="field-label">Contraseña</label>${pwFieldHtml('rep_auth_pass', 'new-password', 'Mínimo 8 caracteres')}</div>
+        </div>
+      </div>
+      ` : `
+      <div class="grid">
+        <div><label class="field-label">Correo electrónico</label><input type="email" id="rep_auth_email" autocomplete="email" placeholder="tucorreo@agencia.com"></div>
+        <div><label class="field-label">Contraseña</label>${pwFieldHtml('rep_auth_pass', 'current-password', 'Mínimo 8 caracteres')}</div>
+      </div>
+      `}
+      ${isSignup ? `
+      <label style="display:flex; align-items:flex-start; gap:8px; margin-top:14px; font-size:12px; color:#D4D6DC; cursor:pointer;">
         <input type="checkbox" id="rep_auth_privacy" style="width:auto; margin-top:2px;">
-        Acepto la <span style="text-decoration:underline; font-weight:600; color:var(--lime);" onclick="event.preventDefault(); openPrivacyPanel();">política de tratamiento de datos personales</span>
+        Acepto los <span style="text-decoration:underline; font-weight:600; color:var(--lime);" onclick="event.preventDefault(); openTermsPanel();">términos y condiciones</span> y la <span style="text-decoration:underline; font-weight:600; color:var(--lime);" onclick="event.preventDefault(); openPrivacyPanel();">política de tratamiento de datos personales</span>
       </label>` : ''}
       <div id="rep_auth_error" class="hint" style="color:#F0B4AE; display:none;"></div>
-      <button class="btn btn-primary" style="margin-top:12px;" onclick="repLogin('${mode}', this)">${isSignup ? 'Enviar a verificación' : 'Iniciar sesión'}</button>
+      <button type="submit" class="btn btn-primary" style="margin-top:14px;" onclick="repLogin('${mode}', this)">${isSignup ? 'Enviar a verificación' : 'Iniciar sesión'}</button>
+      </form>
       <div class="hint" style="color:#B9BEC9;">${isSignup ? '¿Ya tienes cuenta?' : '¿Eres nuevo en la plataforma?'} <span style="color:var(--lime); font-weight:600; text-decoration:underline; cursor:pointer;" onclick="renderRepLoginGate('${isSignup?'login':'signup'}')">${isSignup ? 'Inicia sesión' : 'Regístrate'}</span></div>
     </div>
   `;
@@ -971,8 +1019,15 @@ const PERMITS = {
   'Repuestos / autopartes': { entity:null, note:'No suele requerir permiso previo, salvo homologación puntual para ciertos vehículos. Aun así, tu agencia de aduanas debe confirmar la subpartida exacta.' },
   'Farma / dispositivos médicos': { entity:'INVIMA', note:'Necesitas registro sanitario INVIMA antes de que la mercancía salga del país de origen. Sin este trámite, la carga puede quedar retenida en aduana.' },
   'Textil / confección': { entity:'Reglamento técnico de etiquetado', note:'Colombia exige etiquetado de composición e instrucciones de cuidado en español — revisa esto con tu representante antes de producir el empaque.' },
+  'Calzado / marroquinería': { entity:'Reglamento técnico de etiquetado', note:'Igual que en textiles, se exige etiquetado en español con composición y país de origen — verifica el arancel, que puede ser más alto que en otras categorías.' },
   'Electrónica / tecnología': { entity:'RETIE / homologación CRC', note:'Productos eléctricos requieren certificado RETIE, y equipos con radiofrecuencia (Bluetooth, WiFi) necesitan homologación ante la CRC.' },
+  'Juguetes': { entity:'Reglamento técnico de seguridad de juguetes', note:'Se exige certificado de conformidad con la norma de seguridad de juguetes antes de nacionalizar — pídeselo a tu proveedor o gestiónalo con tu representante.' },
+  'Cosméticos / cuidado personal': { entity:'INVIMA (Notificación Sanitaria)', note:'Necesitas Notificación Sanitaria Obligatoria de Cosméticos (NSOC) ante el INVIMA antes de comercializarlos en Colombia.' },
+  'Alimentos / suplementos': { entity:'INVIMA', note:'Necesitas registro o permiso sanitario de alimentos del INVIMA antes de que la mercancía salga del país de origen — es de los trámites más estrictos, sin este documento la carga queda retenida.' },
   'Hogar / ferretería': { entity:'ICA (si aplica)', note:'La mayoría no requiere permiso previo, pero si el producto tiene componente agrícola u orgánico, el ICA puede exigir uno.' },
+  'Muebles / decoración': { entity:'ICA (si es de madera)', note:'Los muebles de madera suelen requerir certificado fitosanitario del ICA y tratamiento de embalaje (NIMF-15) — confírmalo con tu representante antes de producir.' },
+  'Maquinaria / equipos industriales': { entity:'RETIE (si es eléctrica)', note:'Si el equipo funciona con electricidad necesita certificado RETIE. La maquinaria usada puede además requerir una licencia de importación previa — verifica con tu agencia de aduanas.' },
+  'Joyería / bisutería': { entity:null, note:'No suele requerir permiso previo, pero declara el material real (oro, plata, bisutería) porque el arancel varía mucho según de qué esté hecha la pieza.' },
   'Otro': { entity:null, note:'Pídele a tu representante que verifique en la VUCE (Ventanilla Única de Comercio Exterior) si tu producto necesita un permiso previo antes de comprar.' }
 };
 function renderPermitsCard(){
@@ -1275,47 +1330,85 @@ function generateCatalogOrder(){
   $('quoteResult').scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
-const ORDER_HISTORY = [
-  { id:'o1', prod:'Filtros de aceite automotriz', qty:500, fob:1800, weight:320, cbm:1.4, boxes:20, path:'B', repId:'r1', repName:'Aduanas Cordillera S.A.S.', mode:'AIR', verif:'basic', date:'12 jun 2026', total:3120.50 },
-  { id:'o2', prod:'Correas de distribución', qty:200, fob:900, weight:140, cbm:0.6, boxes:10, path:'B', repId:'r3', repName:'GlobalTrade LatAm', mode:'LCL', verif:'none', date:'3 mar 2026', total:1780.00 }
-];
-function toggleHistory(){
+// "Mis pedidos anteriores" solo tiene sentido con cuenta — un invitado no
+// tiene un client_id estable de una visita a otra, así que no hay de dónde
+// sacarle un historial real. Se oculta la tarjeta completa hasta que hay
+// sesión (ver updateHistoryCardVisibility, llamada al entrar/loguearse).
+function updateHistoryCardVisibility(){
+  const card = $('historyCard');
+  if(!card) return;
+  card.style.display = state.loggedIn ? 'flex' : 'none';
+  if(!state.loggedIn){ $('historyPanel').style.display = 'none'; }
+}
+let pastOrders = [];
+async function toggleHistory(){
   const panel = $('historyPanel');
   if(panel.style.display === 'block'){ panel.style.display='none'; return; }
   panel.style.display = 'block';
-  panel.innerHTML = ORDER_HISTORY.map(o=>`
+  if(!supabaseClient || !state.accountId){
+    panel.innerHTML = `<div class="hint" style="margin-top:8px;">No se pudo cargar tu historial ahora mismo.</div>`;
+    return;
+  }
+  panel.innerHTML = `<div class="hint" style="margin-top:8px;">Cargando…</div>`;
+  const { data, error } = await supabaseClient
+    .from('quote_requests')
+    .select('*')
+    .eq('client_id', state.accountId)
+    .eq('status', 'accepted')
+    .order('created_at', { ascending:false })
+    .limit(10);
+  if(error){
+    panel.innerHTML = `<div class="hint" style="margin-top:8px;">No se pudo cargar tu historial: ${error.message}</div>`;
+    return;
+  }
+  pastOrders = data || [];
+  if(pastOrders.length === 0){
+    panel.innerHTML = `<div class="hint" style="margin-top:8px;">Todavía no tienes pedidos aceptados — aparecerán aquí cuando completes tu primera importación.</div>`;
+    return;
+  }
+  panel.innerHTML = pastOrders.map(o=>{
+    const q = o.confirmed_quote || o.preliminary_quote || {};
+    const total = q.total || o.fob_usd || 0;
+    return `
     <div class="card tight" style="margin-top:8px;">
       <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
         <div>
-          <div style="font-weight:700; font-size:13px;">${o.prod}</div>
-          <div class="hint" style="margin:2px 0 0;">${o.date} · ${o.qty} u · con ${o.repName} · total $ ${o.total.toLocaleString('en-US',{minimumFractionDigits:2})}</div>
+          <div style="font-weight:700; font-size:13px;">${o.product_name || 'Pedido'}</div>
+          <div class="hint" style="margin:2px 0 0;">${new Date(o.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'})} · ${o.quantity||0} u · total ${fmtUsd(total)}</div>
         </div>
         <button class="btn btn-outline btn-sm" onclick="reorderPast('${o.id}')">Volver a pedir</button>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 async function reorderPast(id){
-  const o = ORDER_HISTORY.find(x=>x.id===id);
-  state.path = o.path;
-  state.verif = o.verif;
-  state.mode = o.mode;
-  if(allReps.length === 0) await loadRepresentatives();
-  if(!repById(o.repId)){
-    alert('Este es un pedido de ejemplo del prototipo original — cuando tengamos historial real de pedidos, "volver a pedir" funcionará con representantes reales.');
+  const o = pastOrders.find(x=>x.id===id);
+  if(!o) return;
+  if(o.product_id){
+    alert('Ese pedido fue del catálogo de una trading company — entra por Camino B y búscalo de nuevo en su catálogo actual, ya que el precio pudo cambiar.');
     return;
   }
-  chooseRep(o.repId);
-  $('q_prod').value = o.prod;
-  $('q_qty').value = o.qty;
-  $('q_fob').value = o.fob;
-  $('q_weight').value = o.weight;
-  $('q_cbm').value = o.cbm;
-  $('q_boxes').value = o.boxes;
+  if(allReps.length === 0) await loadRepresentatives();
+  state.path = 'A';
+  const rep = repById(o.representative_id);
+  if(!rep){
+    alert('El representante de ese pedido ya no está disponible en la plataforma.');
+    return;
+  }
+  chooseRep(rep.id);
+  $('q_prod').value = o.product_name || '';
+  $('q_qty').value = o.quantity || 0;
+  $('q_fob').value = o.fob_usd || 0;
+  $('q_weight').value = o.weight_kg || 0;
+  $('q_cbm').value = o.volume_cbm || 0;
+  $('q_boxes').value = o.boxes || 0;
   renderModeRecommend();
-  document.querySelectorAll('#quoteFormBlock .card:nth-of-type(2) .choice').forEach(c=>c.classList.remove('active'));
-  const el = document.querySelector(`#quoteFormBlock .card:nth-of-type(2) .choice[data-v="${o.verif}"]`);
-  if(el) el.classList.add('active');
+  if(o.verification_level){
+    document.querySelectorAll('#quoteFormBlock .card:nth-of-type(2) .choice').forEach(c=>c.classList.remove('active'));
+    const el = document.querySelector(`#quoteFormBlock .card:nth-of-type(2) .choice[data-v="${o.verification_level}"]`);
+    if(el) el.classList.add('active');
+  }
   generateQuote();
 }
 function currentReps(){
@@ -1563,6 +1656,26 @@ const COURIER_LIMITS = { fob:2000, weightKg:50, maxUnitsSameRef:6 };
 function courierIsEligible(fob, weight, qty){
   return fob <= COURIER_LIMITS.fob && weight <= COURIER_LIMITS.weightKg && (qty<=0 || qty <= COURIER_LIMITS.maxUnitsSameRef);
 }
+// Transporte interno de referencia entre el puerto/aeropuerto de llegada y la
+// ciudad final de entrega — no es lo mismo que el flete internacional, y hoy
+// no se estaba cobrando nada por este tramo.
+const INLAND_TABLE = {
+  'Cartagena_Bogotá':380, 'Cartagena_Medellín':250, 'Cartagena_Cali':420, 'Cartagena_Barranquilla':90, 'Cartagena_Cartagena':0,
+  'Buenaventura_Bogotá':320, 'Buenaventura_Medellín':300, 'Buenaventura_Cali':90, 'Buenaventura_Cartagena':450, 'Buenaventura_Buenaventura':0,
+  'Barranquilla_Bogotá':400, 'Barranquilla_Medellín':300, 'Barranquilla_Cali':480, 'Barranquilla_Barranquilla':0,
+  'Bogotá_Bogotá':0, 'Bogotá_Medellín':150, 'Bogotá_Cali':180, 'Bogotá_Cartagena':300
+};
+function updateInlandSuggestion(){
+  const destPort = $('q_destPort').value;
+  const finalCity = $('q_finalCity').value;
+  const key = destPort + '_' + finalCity;
+  const val = INLAND_TABLE[key] ?? (destPort === finalCity ? 0 : 300);
+  $('q_inlandFee').value = val;
+  $('routeHint').textContent = (destPort === finalCity)
+    ? 'Tu ciudad final coincide con el puerto/aeropuerto de llegada — el transporte interno sugerido es bajo o $0 (retiro en puerto/aeropuerto).'
+    : `Trayecto por carretera de ${destPort} a ${finalCity} — valor sugerido de referencia, ajústalo si tu representante te dio uno distinto.`;
+}
+updateInlandSuggestion();
 function renderModeRecommend(){
   const weight = parseFloat($('q_weight').value)||0;
   const cbm = parseFloat($('q_cbm').value)||0;
@@ -1644,21 +1757,38 @@ function computeQuoteLines(fobOverride, freightOverride, repOverride){
   const fob = fobOverride ?? (parseFloat($('q_fob').value)||0);
   const weight = parseFloat($('q_weight').value)||0;
   const cbm = parseFloat($('q_cbm').value)||0;
+  const inlandFee = parseFloat($('q_inlandFee') ? $('q_inlandFee').value : 0)||0;
+  const incoterm = state.incoterm || 'FOB';
+  const rep = repOverride || repById(state.selectedRepId);
+  const repCommission = rep ? (rep.feeType==='flat' ? rep.feeValue : fob*(rep.feeValue/100)) : fob*0.01;
+  const lockFee = state.priceLocked ? 12 : 0;
+
+  if(incoterm === 'DDP'){
+    // El proveedor ya incluyó flete, seguro, arancel e IVA en su precio —
+    // sumarlos de nuevo duplicaría el costo. Solo se agrega lo que el
+    // proveedor nunca cubre: la comisión del representante y el tramo
+    // interno hasta tu bodega.
+    const total = fob + repCommission + inlandFee + lockFee;
+    return { fob, freight:0, insurance:0, exwFee:0, cif:fob, tariffRate:0, tariff:0, ivaRate:0, iva:0, verifCost:0, repCommission, agentFee:0, inlandFee, lockFee, total, incoterm };
+  }
+
+  // EXW: el proveedor no cubre ni siquiera sacar la mercancía de la fábrica —
+  // ese trámite de recogida y exportación no está en ningún otro renglón.
+  const exwFee = incoterm === 'EXW' ? 150 : 0;
   const groupRate = (state.mode==='LCL' && state.groupFreightOverride) ? state.groupFreightOverride : null;
   const modeRates = { LCL: groupRate ?? Math.max(cbm,1)*75, FCL:2600, AIR: Math.max(weight,45)*9.4, COURIER: weight*12 };
-  const freight = freightOverride ?? (modeRates[state.mode] || 0);
-  const insurance = fob*0.005;
-  const cif = fob+freight+insurance;
+  // CIF: el proveedor ya cobró flete y seguro dentro del valor declarado —
+  // cobrarlos aparte otra vez inflaría el costo real.
+  const freight = incoterm === 'CIF' ? 0 : (freightOverride ?? (modeRates[state.mode] || 0));
+  const insurance = incoterm === 'CIF' ? 0 : fob*0.005;
+  const cif = fob+freight+insurance+exwFee;
   const tariffRate = 15, ivaRate = 19;
   const tariff = cif*(tariffRate/100);
   const iva = (cif+tariff)*(ivaRate/100);
   const verifCost = state.verif==='basic'?45: state.verif==='inspection'?180:0;
-  const rep = repOverride || repById(state.selectedRepId);
-  const repCommission = rep ? (rep.feeType==='flat' ? rep.feeValue : fob*(rep.feeValue/100)) : fob*0.01;
   const agentFee = 220;
-  const lockFee = state.priceLocked ? 12 : 0;
-  const total = cif+tariff+iva+verifCost+repCommission+agentFee+lockFee;
-  return { fob, freight, insurance, cif, tariffRate, tariff, ivaRate, iva, verifCost, repCommission, agentFee, lockFee, total };
+  const total = cif+tariff+iva+verifCost+repCommission+agentFee+inlandFee+lockFee;
+  return { fob, freight, insurance, exwFee, cif, tariffRate, tariff, ivaRate, iva, verifCost, repCommission, agentFee, inlandFee, lockFee, total, incoterm };
 }
 const fmtUsd = n => '$ '+n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
 const verifLabels = { none:'Sin verificación', basic:'Verificación básica', inspection:'Inspección de sitio' };
@@ -1677,19 +1807,49 @@ function getPlatformFee(fob){
   return tier ? tier.fee : PLATFORM_FEE_TIERS[PLATFORM_FEE_TIERS.length-1].fee;
 }
 
-function quoteLinesHtml(q){
+const INCOTERM_CALC_NOTE = {
+  EXW: 'Con EXW el proveedor no cubre transporte de ningún tipo — se sumó una recogida en fábrica + trámite de exportación estimados, aparte del flete internacional.',
+  CIF: 'Con CIF el proveedor ya incluyó flete y seguro dentro del valor declarado, por eso no se cobran aparte aquí — evita declarar un FOB que ya traiga flete sumado.',
+  DDP: 'Con DDP el proveedor ya incluyó flete, seguro, arancel e IVA en su precio — pídele por escrito qué queda cubierto exactamente antes de aceptar.'
+};
+function unitCostChip(total, qty){
+  if(!qty || qty<=0) return '';
   return `
-    <div class="line-item"><span class="lbl">Valor FOB</span><span class="val">${fmtUsd(q.fob)}</span></div>
-    <div class="line-item"><span class="lbl">Flete internacional</span><span class="val">${fmtUsd(q.freight)}</span></div>
-    <div class="line-item"><span class="lbl">Seguro</span><span class="val">${fmtUsd(q.insurance)}</span></div>
+    <div style="display:flex; align-items:center; justify-content:space-between; background:var(--lime-tint); border:1px solid var(--lime-deep); border-radius:8px; padding:10px 14px; margin-bottom:12px;">
+      <span style="font-size:12.5px; font-weight:700; color:var(--ink);">💰 Costo por unidad puesta en tu bodega</span>
+      <span style="font-family:'JetBrains Mono',monospace; font-weight:800; font-size:17px; color:var(--ink);">${fmtUsd(total/qty)}</span>
+    </div>
+  `;
+}
+function quoteLinesHtml(q, qty){
+  const note = INCOTERM_CALC_NOTE[q.incoterm];
+  if(q.incoterm === 'DDP'){
+    return `
+      ${unitCostChip(q.total, qty)}
+      <div class="line-item"><span class="lbl">Valor DDP declarado (todo incluido por el proveedor)</span><span class="val">${fmtUsd(q.fob)}</span></div>
+      <div class="line-item"><span class="lbl">Comisión / honorarios</span><span class="val">${fmtUsd(q.repCommission)}</span></div>
+      <div class="line-item"><span class="lbl">Transporte interno hasta tu bodega</span><span class="val">${fmtUsd(q.inlandFee)}</span></div>
+      ${q.lockFee ? `<div class="line-item"><span class="lbl">🧊 Congelar precio por 48h</span><span class="val">${fmtUsd(q.lockFee)}</span></div>` : ''}
+      <div class="line-item total"><span class="lbl">Total puesto en tu bodega</span><span class="val">${fmtUsd(q.total)}</span></div>
+      <div class="hint" style="margin-top:8px;">ℹ ${note}</div>
+    `;
+  }
+  return `
+    ${unitCostChip(q.total, qty)}
+    <div class="line-item"><span class="lbl">Valor FOB${q.incoterm && q.incoterm!=='FOB' ? ' declarado ('+q.incoterm+')' : ''}</span><span class="val">${fmtUsd(q.fob)}</span></div>
+    ${q.exwFee ? `<div class="line-item"><span class="lbl">Recogida en fábrica + trámite de exportación (EXW)</span><span class="val">${fmtUsd(q.exwFee)}</span></div>` : ''}
+    <div class="line-item"><span class="lbl">Flete internacional</span><span class="val">${q.incoterm==='CIF' ? 'Incluido en el FOB' : fmtUsd(q.freight)}</span></div>
+    <div class="line-item"><span class="lbl">Seguro</span><span class="val">${q.incoterm==='CIF' ? 'Incluido en el FOB' : fmtUsd(q.insurance)}</span></div>
     <div class="line-item"><span class="lbl">CIF</span><span class="val">${fmtUsd(q.cif)}</span></div>
     <div class="line-item"><span class="lbl">Arancel (${q.tariffRate}%)</span><span class="val">${fmtUsd(q.tariff)}</span></div>
     <div class="line-item"><span class="lbl">IVA importación (${q.ivaRate}%)</span><span class="val">${fmtUsd(q.iva)}</span></div>
     <div class="line-item"><span class="lbl">${verifLabels[state.verif]}</span><span class="val">${q.verifCost? fmtUsd(q.verifCost):'Incluido'}</span></div>
     <div class="line-item"><span class="lbl">Comisión / honorarios</span><span class="val">${fmtUsd(q.repCommission)}</span></div>
     <div class="line-item"><span class="lbl">Agente de aduanas + gastos portuarios</span><span class="val">${fmtUsd(q.agentFee)}</span></div>
+    <div class="line-item"><span class="lbl">Transporte interno hasta tu bodega</span><span class="val">${fmtUsd(q.inlandFee)}</span></div>
     ${q.lockFee ? `<div class="line-item"><span class="lbl">🧊 Congelar precio por 48h</span><span class="val">${fmtUsd(q.lockFee)}</span></div>` : ''}
     <div class="line-item total"><span class="lbl">Total puesto en tu bodega</span><span class="val">${fmtUsd(q.total)}</span></div>
+    ${note ? `<div class="hint" style="margin-top:8px;">ℹ ${note}</div>` : ''}
   `;
 }
 
@@ -1743,7 +1903,7 @@ function generateQuote(){
         <span class="hint" style="margin:0;">Calculado por la plataforma con tarifas de referencia</span>
       </div>
       <div class="section-title">Cotización preliminar · ${state.mode} · ${verifLabels[state.verif]}</div>
-      ${quoteLinesHtml(q)}
+      ${quoteLinesHtml(q, qty)}
       <div class="hint">Este valor es solo una referencia. Tu representante revisará el pedido real (peso, empaque, ruta disponible) y puede ajustar cifras antes de confirmar.</div>
       <label class="choice" style="margin-top:12px;" onclick="event.preventDefault(); togglePriceLock();">
         <div class="radio ${state.priceLocked?'':''}" id="lockRadio"></div>
@@ -1976,7 +2136,7 @@ function renderConfirmedQuote(){
       </div>
       <div class="section-title">Cotización confirmada · ${state.mode} · ${verifLabels[state.verif]}</div>
       ${state.repNote ? `<div class="hint" style="background:var(--paper); border-radius:8px; padding:10px 12px; margin-bottom:12px;">💬 "${state.repNote}" — ${repName}</div>` : ''}
-      ${quoteLinesHtml(q)}
+      ${quoteLinesHtml(q, qty)}
       <div class="hint">Estos son los valores reales que aplicará ${repName}, ya con el flete cotizado a la tarifa vigente. Al aceptar, se compromete el pedido.</div>
       <div class="hint" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">Además de esto, Conecta Importa cobra un <b>fee de activación de ${fmtUsd(getPlatformFee(q.fob))}</b> (ejemplo, por definir) — es un cobro aparte de la plataforma, no de ${repName}.</div>
       <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
