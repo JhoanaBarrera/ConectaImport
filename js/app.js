@@ -171,6 +171,16 @@ async function clientGateSubmit(mode, btn){
 function continueAsGuest(){
   enterApp();
 }
+// "Quiero importar" es la entrada principal del sitio — no debe forzar login
+// ni registro. Puedes explorar y cotizar como invitado; la cuenta solo se
+// pide más adelante, cuando aceptas una cotización confirmada (ver
+// renderAuthGate). Entrar como cliente (con cuenta) sigue siendo una opción
+// aparte, en el dropdown de "Iniciar sesión" del header.
+function startImporting(){
+  closeLoginDropdown();
+  if(state.loggedIn){ enterApp(); return; }
+  continueAsGuest();
+}
 function goToRepPortal(){
   closeLoginDropdown();
   $('appShell').style.display = 'none';
@@ -713,11 +723,21 @@ function openRepForm(id){
     renderCatalogRepForm(row);
     return;
   }
+  const incoterm = row.incoterm || 'FOB';
+  if(incoterm === 'DDP'){
+    renderDdpRepForm(row);
+    return;
+  }
   const q = row.preliminary_quote || {};
+  const incotermBanner = incoterm === 'CIF'
+    ? `<p class="hint" style="margin-top:0;">El cliente declaró <b>CIF</b> — su proveedor ya cobró flete y seguro dentro del valor FOB. Por eso estos dos campos vienen en $0; solo súbelos si de verdad vas a cobrar algo aparte.</p>`
+    : incoterm === 'EXW'
+    ? `<p class="hint" style="margin-top:0;">El cliente declaró <b>EXW</b> — el proveedor no cubre ni la recogida en fábrica. Se agregó ese campo aparte del flete internacional.</p>`
+    : '';
   $('repForm').innerHTML = `
     ${getClientContextHtml(row)}
     <div class="card">
-      <div class="section-title">Pedido declarado por el cliente</div>
+      <div class="section-title">Pedido declarado por el cliente ${incoterm!=='FOB' ? `<span class="pill pill-warn">Incoterm: ${incoterm}</span>` : ''}</div>
       <div class="grid">
         <div><label class="field-label">Producto</label><input type="text" value="${row.product_name || ''}" disabled></div>
         <div><label class="field-label">Unidades</label><input type="text" value="${row.quantity || 0}" disabled></div>
@@ -728,7 +748,9 @@ function openRepForm(id){
     <div class="card">
       <div class="section-title">Tus valores reales</div>
       <p class="hint" style="margin-top:0;">Estos campos vienen prellenados con <b>nuestro estimado automático</b> — ajústalos a las tarifas reales que puedes ofrecer. Es lo que verá el cliente en su cotización confirmada.</p>
+      ${incotermBanner}
       <div class="grid">
+        ${incoterm==='EXW' ? `<div><label class="field-label">Recogida en fábrica + exportación (USD)</label><input type="number" id="rr_exw" value="${q.exwFee || 150}" oninput="updateRRTotal()"></div>` : ''}
         <div><label class="field-label">Flete real (USD)</label><input type="number" id="rr_freight" value="${(q.freight||0).toFixed ? q.freight.toFixed(2) : (q.freight||0)}" oninput="updateRRTotal()"></div>
         <div><label class="field-label">Seguro real (USD)</label><input type="number" id="rr_insurance" value="${(q.insurance||0).toFixed ? q.insurance.toFixed(2) : (q.insurance||0)}" oninput="updateRRTotal()"></div>
         <div><label class="field-label">Arancel real (%)</label><input type="number" id="rr_tariff" value="${q.tariffRate ?? 15}" step="0.5" oninput="updateRRTotal()"></div>
@@ -736,6 +758,7 @@ function openRepForm(id){
         <div><label class="field-label">Costo verificación (USD)</label><input type="number" id="rr_verif" value="${q.verifCost || 0}" oninput="updateRRTotal()"></div>
         <div><label class="field-label">Tu comisión / honorarios (USD)</label><input type="number" id="rr_commission" value="${(q.repCommission||0).toFixed ? q.repCommission.toFixed(2) : (q.repCommission||0)}" oninput="updateRRTotal()"></div>
         <div><label class="field-label">Agente aduanas + portuarios (USD)</label><input type="number" id="rr_agent" value="${q.agentFee || 220}" oninput="updateRRTotal()"></div>
+        <div><label class="field-label">Transporte interno hasta bodega (USD)</label><input type="number" id="rr_inland" value="${q.inlandFee || 0}" oninput="updateRRTotal()"></div>
       </div>
       <div id="rrTotalPreview" class="hint" style="margin-top:12px; font-weight:700; color:var(--ink); font-size:13.5px;"></div>
       <label class="field-label" style="margin-top:14px;">Nota para el cliente</label>
@@ -761,6 +784,83 @@ function openRepForm(id){
   `;
   updateRRTotal();
   $('repForm').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+// Con DDP el proveedor ya incluyó flete, seguro, arancel e IVA en su precio —
+// el representante no tiene nada que recalcular ahí, solo su comisión y el
+// tramo interno hasta la bodega del cliente (igual que computeQuoteLines()
+// en el lado del cliente).
+function renderDdpRepForm(row){
+  const q = row.preliminary_quote || {};
+  $('repForm').innerHTML = `
+    ${getClientContextHtml(row)}
+    <div class="card">
+      <div class="section-title">Pedido declarado por el cliente <span class="pill pill-warn">Incoterm: DDP</span></div>
+      <p class="hint" style="margin-top:0;">El proveedor ya se compromete a entregar todo incluido (flete, seguro, arancel, IVA) — por eso aquí no hay que recalcular esos rubros, solo tu comisión y el tramo interno hasta la bodega.</p>
+      <div class="grid">
+        <div><label class="field-label">Producto</label><input type="text" value="${row.product_name || ''}" disabled></div>
+        <div><label class="field-label">Unidades</label><input type="text" value="${row.quantity || 0}" disabled></div>
+        <div><label class="field-label">Valor DDP declarado (USD)</label><input type="text" value="${fmtUsd(row.fob_usd || 0)}" disabled></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Tus valores reales</div>
+      <div class="grid">
+        <div><label class="field-label">Tu comisión / honorarios (USD)</label><input type="number" id="rr_commission" value="${(q.repCommission||0).toFixed ? q.repCommission.toFixed(2) : (q.repCommission||0)}" oninput="updateRRTotalDdp()"></div>
+        <div><label class="field-label">Transporte interno hasta bodega (USD)</label><input type="number" id="rr_inland" value="${q.inlandFee || 0}" oninput="updateRRTotalDdp()"></div>
+      </div>
+      <div id="rrTotalPreview" class="hint" style="margin-top:12px; font-weight:700; color:var(--ink); font-size:13.5px;"></div>
+      <label class="field-label" style="margin-top:14px;">Nota para el cliente</label>
+      <textarea id="rep_note" rows="3">Confirmé con el proveedor que el DDP cubre despacho hasta tu bodega.</textarea>
+      <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="submitRepResponseDdp()">✓ Aprobar y enviar cotización confirmada</button>
+        <button class="btn btn-outline" style="border-color:var(--danger); color:var(--danger);" onclick="toggleRejectBox()">✗ Rechazar solicitud</button>
+      </div>
+      <div id="rrRejectBox" style="display:none; margin-top:16px; padding-top:16px; border-top:1px dashed var(--line);">
+        <label class="field-label">Motivo del rechazo</label>
+        <select id="rr_reject_reason">
+          <option>Producto no permitido en esta ruta o país</option>
+          <option>Documentación del proveedor insuficiente</option>
+          <option>Fuera de nuestra capacidad de despacho actual</option>
+          <option>El presupuesto del cliente no es viable con tarifas reales</option>
+          <option>Otro motivo</option>
+        </select>
+        <label class="field-label" style="margin-top:10px;">Mensaje para el cliente</label>
+        <textarea id="rr_reject_msg" rows="2" placeholder="Explica brevemente por qué, o qué necesitarías para reconsiderar."></textarea>
+        <button class="btn btn-secondary" style="margin-top:10px;" onclick="submitRejection()">Confirmar rechazo</button>
+      </div>
+    </div>
+  `;
+  updateRRTotalDdp();
+  $('repForm').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+function updateRRTotalDdp(){
+  if(!repOpenRequest) return;
+  const fob = repOpenRequest.fob_usd || 0;
+  const commission = parseFloat($('rr_commission').value)||0;
+  const inlandFee = parseFloat($('rr_inland').value)||0;
+  const total = fob+commission+inlandFee;
+  const prelimTotal = repOpenRequest.preliminary_quote ? repOpenRequest.preliminary_quote.total : total;
+  const diffPct = prelimTotal>0 ? ((total-prelimTotal)/prelimTotal*100) : 0;
+  const sign = diffPct>=0?'+':'';
+  $('rrTotalPreview').textContent = `Total real para el cliente: ${fmtUsd(total)}  (estimado automático era ${fmtUsd(prelimTotal)}, ${sign}${diffPct.toFixed(1)}%)`;
+}
+async function submitRepResponseDdp(){
+  if(!repOpenRequest) return;
+  const fob = repOpenRequest.fob_usd || 0;
+  const repCommission = parseFloat($('rr_commission').value)||0;
+  const inlandFee = parseFloat($('rr_inland').value)||0;
+  const lockFee = repOpenRequest.price_locked ? 12 : 0;
+  const total = fob+repCommission+inlandFee+lockFee;
+  const confirmedQuote = { fob, freight:0, insurance:0, exwFee:0, cif:fob, tariffRate:0, tariff:0, ivaRate:0, iva:0, verifCost:0, repCommission, agentFee:0, inlandFee, lockFee, total, incoterm:'DDP' };
+  const repNote = $('rep_note').value;
+  const { error } = await supabaseClient.from('quote_requests').update({
+    status: 'responded', confirmed_quote: confirmedQuote, rep_note: repNote, updated_at: new Date().toISOString()
+  }).eq('id', repOpenRequest.id);
+  if(error){ alert('No se pudo enviar la respuesta: ' + error.message); return; }
+  logNotification(repOpenRequest.contact_email, `Confirmaste la cotización de ${repOpenRequest.folio}`, 'La cotización confirmada con valores reales ya está disponible para el cliente.');
+  $('repForm').innerHTML = `<div class="banner">✓ Enviaste la cotización confirmada con tus valores reales. El cliente ya puede verla en su vista, incluyendo tu nota.</div>`;
+  repOpenRequest = null;
+  renderRepQueue();
 }
 function renderCatalogRepForm(row){
   const q = row.preliminary_quote || {};
@@ -820,6 +920,7 @@ function toggleRejectBox(){
 function updateRRTotal(){
   if(!repOpenRequest) return;
   const fob = repOpenRequest.fob_usd || 0;
+  const exwFee = $('rr_exw') ? parseFloat($('rr_exw').value)||0 : 0;
   const freight = parseFloat($('rr_freight').value)||0;
   const insurance = parseFloat($('rr_insurance').value)||0;
   const tariffRate = parseFloat($('rr_tariff').value)||0;
@@ -827,10 +928,11 @@ function updateRRTotal(){
   const verifCost = parseFloat($('rr_verif').value)||0;
   const commission = parseFloat($('rr_commission').value)||0;
   const agentFee = parseFloat($('rr_agent').value)||0;
-  const cif = fob+freight+insurance;
+  const inlandFee = parseFloat($('rr_inland').value)||0;
+  const cif = fob+freight+insurance+exwFee;
   const tariff = cif*(tariffRate/100);
   const iva = (cif+tariff)*(ivaRate/100);
-  const total = cif+tariff+iva+verifCost+commission+agentFee;
+  const total = cif+tariff+iva+verifCost+commission+agentFee+inlandFee;
   const prelimTotal = repOpenRequest.preliminary_quote ? repOpenRequest.preliminary_quote.total : total;
   const diffPct = prelimTotal>0 ? ((total-prelimTotal)/prelimTotal*100) : 0;
   const sign = diffPct>=0?'+':'';
@@ -839,6 +941,7 @@ function updateRRTotal(){
 async function submitRepResponse(){
   if(!repOpenRequest) return;
   const fob = repOpenRequest.fob_usd || 0;
+  const exwFee = $('rr_exw') ? parseFloat($('rr_exw').value)||0 : 0;
   const freight = parseFloat($('rr_freight').value)||0;
   const insurance = parseFloat($('rr_insurance').value)||0;
   const tariffRate = parseFloat($('rr_tariff').value)||0;
@@ -846,12 +949,13 @@ async function submitRepResponse(){
   const verifCost = parseFloat($('rr_verif').value)||0;
   const repCommission = parseFloat($('rr_commission').value)||0;
   const agentFee = parseFloat($('rr_agent').value)||0;
-  const cif = fob+freight+insurance;
+  const inlandFee = parseFloat($('rr_inland').value)||0;
+  const cif = fob+freight+insurance+exwFee;
   const tariff = cif*(tariffRate/100);
   const iva = (cif+tariff)*(ivaRate/100);
   const lockFee = repOpenRequest.price_locked ? 12 : 0;
-  const total = cif+tariff+iva+verifCost+repCommission+agentFee+lockFee;
-  const confirmedQuote = { fob, freight, insurance, cif, tariffRate, tariff, ivaRate, iva, verifCost, repCommission, agentFee, lockFee, total };
+  const total = cif+tariff+iva+verifCost+repCommission+agentFee+inlandFee+lockFee;
+  const confirmedQuote = { fob, freight, insurance, exwFee, cif, tariffRate, tariff, ivaRate, iva, verifCost, repCommission, agentFee, inlandFee, lockFee, total, incoterm: repOpenRequest.incoterm || 'FOB' };
   const repNote = $('rep_note').value;
   const { error } = await supabaseClient.from('quote_requests').update({
     status: 'responded', confirmed_quote: confirmedQuote, rep_note: repNote, updated_at: new Date().toISOString()
@@ -2206,13 +2310,20 @@ function renderAuthGate(mode){
       <p style="font-size:12.5px; line-height:1.6; margin:0 0 14px;">
         A partir de aquí compartimos tus datos y los del proveedor con ${$('quoteRepName').textContent}, y comprometemos el pago. Explorar y cotizar no requería cuenta — confirmar el pedido sí.
       </p>
+      <form onsubmit="return false;" autocomplete="on">
       <div class="grid">
         ${isLogin ? '' : `<div><label class="field-label">Nombre completo</label><input type="text" id="auth_name" autocomplete="name" placeholder="Tu nombre"></div>`}
         <div><label class="field-label">Correo electrónico</label><input type="email" id="auth_email" autocomplete="email" value="${state.contactEmail||''}" placeholder="tucorreo@ejemplo.com"></div>
-        <div><label class="field-label">Contraseña</label><input type="password" id="auth_pass" autocomplete="${isLogin?'current-password':'new-password'}" placeholder="Mínimo 8 caracteres"></div>
+        <div><label class="field-label">Contraseña</label>${pwFieldHtml('auth_pass', isLogin?'current-password':'new-password', 'Mínimo 8 caracteres')}</div>
       </div>
+      ${isLogin ? '' : `
+      <label style="display:flex; align-items:flex-start; gap:8px; margin-top:12px; font-size:12px; color:#D4D6DC; cursor:pointer;">
+        <input type="checkbox" id="auth_privacy" style="width:auto; margin-top:2px;">
+        Acepto los <span style="text-decoration:underline; font-weight:600; color:var(--lime);" onclick="event.preventDefault(); openTermsPanel();">términos y condiciones</span> y la <span style="text-decoration:underline; font-weight:600; color:var(--lime);" onclick="event.preventDefault(); openPrivacyPanel();">política de tratamiento de datos personales</span>
+      </label>`}
       <div id="auth_gate_error" class="hint" style="color:#F0B4AE; display:none;"></div>
-      <button class="btn btn-primary" style="margin-top:12px;" onclick="createAccountAndContinue('${mode}', this)">${isLogin ? 'Iniciar sesión y continuar' : 'Crear cuenta y continuar'}</button>
+      <button type="submit" class="btn btn-primary" style="margin-top:12px;" onclick="createAccountAndContinue('${mode}', this)">${isLogin ? 'Iniciar sesión y continuar' : 'Crear cuenta y continuar'}</button>
+      </form>
       <div class="hint" style="color:#B9BEC9;">${isLogin ? '¿Aún no tienes cuenta?' : '¿Ya tienes cuenta?'} <span style="color:var(--lime); font-weight:600; text-decoration:underline; cursor:pointer;" onclick="renderAuthGateSwitch('${isLogin?'signup':'login'}')">${isLogin ? 'Crear una' : 'Inicia sesión'}</span></div>
     </div>
   `;
@@ -2229,6 +2340,7 @@ async function createAccountAndContinue(mode, btn){
   const errBox = $('auth_gate_error');
   if(errBox) errBox.style.display = 'none';
   if(!email || !pass){ alert('Ingresa correo y contraseña.'); return; }
+  if(mode !== 'login' && !$('auth_privacy').checked){ alert('Debes aceptar la política de tratamiento de datos personales para crear tu cuenta.'); return; }
   if(!requireSupabase()) return;
   const originalLabel = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = 'Un momento…'; }
@@ -2240,7 +2352,7 @@ async function createAccountAndContinue(mode, btn){
       session = data.session;
     } else {
       const name = $('auth_name') ? $('auth_name').value.trim() : '';
-      session = await upgradeOrSignUp(email, pass, { role:'client', full_name:name });
+      session = await upgradeOrSignUp(email, pass, { role:'client', full_name:name, privacy_accepted_at: new Date().toISOString() });
       if(!session){
         $('authGate').innerHTML = `<div class="banner">✓ Cuenta creada. Confirma tu correo (<b>${email}</b>) y vuelve a aceptar la cotización para continuar.</div>`;
         return;
