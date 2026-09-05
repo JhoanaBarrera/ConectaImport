@@ -1,5 +1,29 @@
 const $ = id => document.getElementById(id);
 
+// Escapa texto que viene de OTRO usuario (nombre de representante, nota,
+// motivo de rechazo, nombre de producto, etc.) antes de meterlo en una
+// plantilla de innerHTML — sin esto, alguien podría registrar un negocio
+// con un <script> en el nombre y ejecutar código en el navegador de
+// quien vea esa tarjeta (XSS almacenado). Los números y valores fijos
+// generados por la propia app no lo necesitan, pero cualquier texto
+// libre escrito por un cliente o representante sí.
+function escHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+// Las filas de quote_requests traen varios campos de texto libre escritos
+// por el cliente (product_name, contact_email/whatsapp) o el representante
+// (rep_note, reject_reason, reject_msg) que luego se interpolan en
+// innerHTML del otro lado — se escapan una sola vez aquí, apenas llegan de
+// Supabase, para no tener que acordarse de hacerlo en cada pantalla.
+function sanitizeQuoteRow(row){
+  if(!row) return row;
+  const clean = { ...row };
+  ['product_name','rep_note','reject_reason','reject_msg','contact_email','contact_whatsapp'].forEach(k => {
+    if(clean[k] != null) clean[k] = escHtml(clean[k]);
+  });
+  return clean;
+}
+
 // ---------------------------------------------------------------------
 // Campo de contraseña con ícono de mostrar/ocultar, reutilizable en los
 // 4 formularios de login/registro (cliente y representante).
@@ -773,7 +797,7 @@ async function renderRepQueue(){
     $('repQueue').innerHTML = `<div class="hint">No se pudieron cargar las solicitudes: ${error.message}</div>`;
     return;
   }
-  repQueueRows = data || [];
+  repQueueRows = (data || []).map(sanitizeQuoteRow);
   if(repQueueRows.length === 0){
     $('repQueue').innerHTML = `<div class="hint">Todavía no tienes solicitudes pendientes — aparecerán aquí apenas un cliente te elija y pida cotización.</div>`;
     return;
@@ -942,9 +966,9 @@ async function submitRepResponseDdp(){
   const total = fob+repCommission+inlandFee+lockFee;
   const confirmedQuote = { fob, freight:0, insurance:0, exwFee:0, cif:fob, tariffRate:0, tariff:0, ivaRate:0, iva:0, verifCost:0, repCommission, agentFee:0, inlandFee, lockFee, total, incoterm:'DDP' };
   const repNote = $('rep_note').value;
-  const { error } = await supabaseClient.from('quote_requests').update({
-    status: 'responded', confirmed_quote: confirmedQuote, rep_note: repNote, updated_at: new Date().toISOString()
-  }).eq('id', repOpenRequest.id);
+  const { error } = await supabaseClient.rpc('respond_quote_request', {
+    p_id: repOpenRequest.id, p_confirmed_quote: confirmedQuote, p_rep_note: repNote
+  });
   if(error){ alert('No se pudo enviar la respuesta: ' + error.message); return; }
   logNotification(repOpenRequest.contact_email, `Confirmaste la cotización de ${repOpenRequest.folio}`, 'La cotización confirmada con valores reales ya está disponible para el cliente.');
   $('repForm').innerHTML = `<div class="banner">✓ Enviaste la cotización confirmada con tus valores reales. El cliente ya puede verla en su vista, incluyendo tu nota.</div>`;
@@ -992,9 +1016,9 @@ async function submitCatalogConfirm(){
   if(!repOpenRequest) return;
   const repNote = $('rep_note').value;
   const confirmedQuote = repOpenRequest.preliminary_quote;
-  const { error } = await supabaseClient.from('quote_requests').update({
-    status: 'responded', confirmed_quote: confirmedQuote, rep_note: repNote, updated_at: new Date().toISOString()
-  }).eq('id', repOpenRequest.id);
+  const { error } = await supabaseClient.rpc('respond_quote_request', {
+    p_id: repOpenRequest.id, p_confirmed_quote: confirmedQuote, p_rep_note: repNote
+  });
   if(error){ alert('No se pudo confirmar el pedido: ' + error.message); return; }
   logNotification(repOpenRequest.contact_email, `Confirmaste el pedido de ${repOpenRequest.folio}`, 'Tu cliente ya puede ver la confirmación y proceder con el pago.');
   $('repForm').innerHTML = `<div class="banner">✓ Confirmaste disponibilidad. El cliente ya puede verlo y proceder con el pago.</div>`;
@@ -1046,9 +1070,9 @@ async function submitRepResponse(){
   const total = cif+tariff+iva+verifCost+repCommission+agentFee+inlandFee+lockFee;
   const confirmedQuote = { fob, freight, insurance, exwFee, cif, tariffRate, tariff, ivaRate, iva, verifCost, repCommission, agentFee, inlandFee, lockFee, total, incoterm: repOpenRequest.incoterm || 'FOB' };
   const repNote = $('rep_note').value;
-  const { error } = await supabaseClient.from('quote_requests').update({
-    status: 'responded', confirmed_quote: confirmedQuote, rep_note: repNote, updated_at: new Date().toISOString()
-  }).eq('id', repOpenRequest.id);
+  const { error } = await supabaseClient.rpc('respond_quote_request', {
+    p_id: repOpenRequest.id, p_confirmed_quote: confirmedQuote, p_rep_note: repNote
+  });
   if(error){ alert('No se pudo enviar la respuesta: ' + error.message); return; }
   logNotification(repOpenRequest.contact_email, `Confirmaste la cotización de ${repOpenRequest.folio}`, 'La cotización confirmada con valores reales ya está disponible para el cliente.');
   $('repForm').innerHTML = `<div class="banner">✓ Enviaste la cotización confirmada con tus valores reales. El cliente ya puede verla en su vista, incluyendo tu nota.</div>`;
@@ -1059,9 +1083,9 @@ async function submitRejection(){
   if(!repOpenRequest) return;
   const reason = $('rr_reject_reason').value;
   const msg = $('rr_reject_msg').value.trim();
-  const { error } = await supabaseClient.from('quote_requests').update({
-    status: 'rejected', reject_reason: reason, reject_msg: msg, updated_at: new Date().toISOString()
-  }).eq('id', repOpenRequest.id);
+  const { error } = await supabaseClient.rpc('reject_quote_request', {
+    p_id: repOpenRequest.id, p_reason: reason, p_msg: msg
+  });
   if(error){ alert('No se pudo rechazar la solicitud: ' + error.message); return; }
   logNotification(repOpenRequest.contact_email, 'Tu solicitud fue rechazada', `Motivo: ${reason}.${msg? ' Nota del representante: '+msg:''} Puedes elegir otro representante desde la plataforma.`);
   $('repForm').innerHTML = `<div class="banner" style="background:var(--danger-soft); border-color:var(--danger); color:#7A241F;">✗ Rechazaste la solicitud (${reason}). El cliente fue notificado y puede elegir otro representante.</div>`;
@@ -1331,14 +1355,14 @@ async function classifyProductImage(){
     if(error || !data || data.error){
       const detail = await describeFunctionError(error, data);
       console.error('classify-product error:', detail);
-      box.innerHTML = `<div class="hint" style="color:var(--danger);">No pudimos analizar la imagen — intenta con otra foto o continúa sin ella.</div><div class="hint" style="margin-top:4px; font-size:10.5px; color:var(--ink-faint);">Detalle técnico (revisa la consola del navegador): ${detail}</div>`;
+      box.innerHTML = `<div class="hint" style="color:var(--danger);">No pudimos analizar la imagen — intenta con otra foto o continúa sin ella.</div><div class="hint" style="margin-top:4px; font-size:10.5px; color:var(--ink-faint);">Detalle técnico (revisa la consola del navegador): ${escHtml(detail)}</div>`;
       btn.disabled = false;
       return;
     }
     state.productImageClassification = data;
     box.innerHTML = `
       <div class="info-note" style="margin-top:0;">
-        <b>Sugerencia preliminar:</b> ${data.description} — categoría posible: <b>${data.suggested_category}</b>.
+        <b>Sugerencia preliminar:</b> ${escHtml(data.description)} — categoría posible: <b>${escHtml(data.suggested_category)}</b>.
       </div>
       <div class="hint" style="margin-top:8px; font-weight:600;">⚠️ ${data.disclaimer}</div>
     `;
@@ -1518,11 +1542,15 @@ function mapRepFromDb(r){
     : `${r.commission_value ?? 1}% del FOB`;
   return {
     id: r.id,
-    name: r.business_name || 'Representante',
+    // Se escapa aquí, una sola vez, porque de acá en adelante .name se
+    // interpola directo en innerHTML en muchas pantallas distintas —
+    // sin esto, el nombre de un negocio con <script> quedaría ejecutable
+    // en el navegador de cualquier cliente que vea esa tarjeta.
+    name: escHtml(r.business_name || 'Representante'),
     type: typeLabels[r.rep_type] || r.rep_type,
     repType: r.rep_type,
     init: (r.business_name || '??').replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ ]/g,'').trim().split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase() || '??',
-    tags: (r.categories && r.categories.length) ? r.categories : ['General'],
+    tags: ((r.categories && r.categories.length) ? r.categories : ['General']).map(escHtml),
     ops: `${r.operations_count || 0} operaciones`,
     rating: r.rating ? Number(r.rating).toFixed(1) : 'Nuevo',
     response: '< 24h',
@@ -1540,7 +1568,12 @@ async function loadRepresentatives(){
     .select('*')
     .eq('available', true);
   if(error){ console.error('No se pudieron cargar los representantes:', error); allReps = []; return; }
-  allReps = (data || []).map(mapRepFromDb);
+  // No debe aparecer en el marketplace ni recibir solicitudes hasta tener
+  // al menos identidad verificada — "available" solo dice que el
+  // representante se activó a sí mismo, no que el equipo ya lo revisó.
+  allReps = (data || [])
+    .filter(r => r.verification_status && r.verification_status.identidad === true)
+    .map(mapRepFromDb);
 }
 
 // ---------------------------------------------------------------------
@@ -1551,20 +1584,20 @@ async function loadProducts(){
   if(!supabaseClient){ allProducts = []; return; }
   const { data, error } = await supabaseClient
     .from('products')
-    .select('*, representatives(id, business_name, rating, available)')
+    .select('*, representatives(id, business_name, rating, available, verification_status)')
     .eq('active', true);
   if(error){ console.error('No se pudieron cargar los productos del catálogo:', error); allProducts = []; return; }
   allProducts = (data || [])
-    .filter(p => p.representatives && p.representatives.available)
+    .filter(p => p.representatives && p.representatives.available && p.representatives.verification_status && p.representatives.verification_status.identidad === true)
     .map(p => ({
       id: p.id,
-      name: p.name,
-      description: p.description,
+      name: escHtml(p.name),
+      description: escHtml(p.description),
       priceUsd: Number(p.price_usd) || 0,
       unit: p.unit || 'unidad',
       stock: p.stock,
       representativeId: p.representative_id,
-      businessName: p.representatives.business_name || 'Trading company',
+      businessName: escHtml(p.representatives.business_name || 'Trading company'),
       rating: p.representatives.rating ? Number(p.representatives.rating).toFixed(1) : 'Nuevo'
     }));
 }
@@ -1695,7 +1728,7 @@ async function toggleHistory(){
     panel.innerHTML = `<div class="hint" style="margin-top:8px;">No se pudo cargar tu historial: ${error.message}</div>`;
     return;
   }
-  pastOrders = data || [];
+  pastOrders = (data || []).map(sanitizeQuoteRow);
   if(pastOrders.length === 0){
     panel.innerHTML = `<div class="hint" style="margin-top:8px;">Todavía no tienes pedidos aceptados — aparecerán aquí cuando completes tu primera importación.</div>`;
     return;
@@ -1902,7 +1935,7 @@ function renderRefLines(){
   if(state.refLines.length === 0){ box.innerHTML = ''; return; }
   box.innerHTML = state.refLines.map((line, i) => `
     <div style="display:flex; gap:8px; align-items:flex-end; margin-bottom:8px; flex-wrap:wrap;">
-      <div style="flex:2; min-width:140px;"><label class="field-label">Referencia</label><input type="text" value="${line.name}" oninput="updateRefLine(${i},'name',this.value)" placeholder="Ej. Filtros de aceite"></div>
+      <div style="flex:2; min-width:140px;"><label class="field-label">Referencia</label><input type="text" value="${escHtml(line.name)}" oninput="updateRefLine(${i},'name',this.value)" placeholder="Ej. Filtros de aceite"></div>
       <div style="flex:1; min-width:80px;"><label class="field-label">Unidades</label><input type="number" value="${line.qty}" oninput="updateRefLine(${i},'qty',this.value)"></div>
       <div style="flex:1; min-width:100px;"><label class="field-label">FOB por unidad (USD)</label><input type="number" value="${line.unitFob}" step="0.01" oninput="updateRefLine(${i},'unitFob',this.value)"></div>
       <button type="button" class="btn btn-outline btn-sm" onclick="removeRefLine(${i})" aria-label="Quitar referencia">✕</button>
@@ -2266,7 +2299,7 @@ function refBreakdownHtml(q, uid){
     <div class="card">
       <div class="section-title">Costo por unidad, por referencia</div>
       <p class="hint" style="margin-top:0;">Con varias referencias a precios distintos, un promedio general no sirve para decidir márgenes — cada una reparte flete, aduana y comisión según su propio valor FOB.</p>
-      ${lines.map(l => `<div class="line-item"><span class="lbl">${l.name} (${l.qty} u · FOB ${fmtUsd(l.unitFob)}/u)</span><span class="val">${fmtUsd(l.landedUnit)}/u puesta en bodega</span></div>`).join('')}
+      ${lines.map(l => `<div class="line-item"><span class="lbl">${escHtml(l.name)} (${l.qty} u · FOB ${fmtUsd(l.unitFob)}/u)</span><span class="val">${fmtUsd(l.landedUnit)}/u puesta en bodega</span></div>`).join('')}
     </div>
   `;
 }
@@ -2494,14 +2527,15 @@ async function checkRepResponse(btn){
   const original = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Consultando…';
-  const { data, error } = await supabaseClient
+  const { data: rawData, error } = await supabaseClient
     .from('quote_requests').select('*').eq('id', state.quoteRequestDbId).maybeSingle();
   btn.disabled = false;
   btn.textContent = original;
-  if(error || !data){
+  if(error || !rawData){
     alert('No se pudo consultar el estado ahora mismo. Intenta de nuevo en un momento.');
     return;
   }
+  const data = sanitizeQuoteRow(rawData);
   if(data.status === 'rejected'){
     state.rejected = true;
     state.rejectReason = data.reject_reason;
@@ -2603,9 +2637,7 @@ function renderCatalogConfirmedQuote(){
 }
 async function markQuoteAccepted(){
   if(!supabaseClient || !state.quoteRequestDbId) return;
-  const { error } = await supabaseClient.from('quote_requests')
-    .update({ status:'accepted', updated_at:new Date().toISOString() })
-    .eq('id', state.quoteRequestDbId);
+  const { error } = await supabaseClient.rpc('accept_quote_request', { p_id: state.quoteRequestDbId });
   if(error) console.error('No se pudo marcar la cotización como aceptada:', error);
 }
 async function handleAcceptConfirmed(){

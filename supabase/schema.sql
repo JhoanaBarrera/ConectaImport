@@ -471,3 +471,79 @@ create index if not exists idx_representatives_profile_id on representatives(pro
 create index if not exists idx_products_representative_id on products(representative_id);
 create index if not exists idx_orders_quote_request_id on orders(quote_request_id);
 create index if not exists idx_shipment_events_order_id on shipment_events(order_id);
+
+-- ============================================================
+-- MIGRACIÓN: transiciones de estado de quote_requests solo por función
+-- ------------------------------------------------------------
+-- Antes, el cliente y el representante podían actualizar la fila de
+-- quote_requests directamente desde el navegador — la policy de RLS solo
+-- filtraba CUÁLES filas (las suyas), pero no qué columnas: en la misma
+-- petición, un cliente "aceptando" su cotización podía además cambiar
+-- confirmed_quote/fob_usd/representative_id, y un representante
+-- "respondiendo" podía cambiar el product_name o el contact_email que
+-- declaró el cliente. Ahora cada transición de estado válida vive en una
+-- función propia (security definer), y se revoca el UPDATE directo — así
+-- nadie puede tocar una columna que no le corresponde a su transición,
+-- ni saltarse el estado esperado (ej. rechazar algo que ya fue aceptado).
+-- Cómo aplicar: pégala y corre en el SQL Editor de Supabase.
+-- ============================================================
+drop policy if exists "quote_requests: representante puede responder" on quote_requests;
+drop policy if exists "quote_requests: cliente puede aceptar" on quote_requests;
+revoke update on quote_requests from authenticated, anon;
+
+create or replace function accept_quote_request(p_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update quote_requests
+  set status = 'accepted', updated_at = now()
+  where id = p_id
+    and client_id = auth.uid()
+    and status = 'responded';
+  if not found then
+    raise exception 'No se pudo aceptar: la solicitud no existe, no es tuya, o no está en un estado que se pueda aceptar.';
+  end if;
+end;
+$$;
+grant execute on function accept_quote_request(uuid) to authenticated;
+
+create or replace function respond_quote_request(p_id uuid, p_confirmed_quote jsonb, p_rep_note text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update quote_requests
+  set status = 'responded', confirmed_quote = p_confirmed_quote, rep_note = p_rep_note, updated_at = now()
+  where id = p_id
+    and representative_id in (select id from representatives where profile_id = auth.uid())
+    and status = 'pending';
+  if not found then
+    raise exception 'No se pudo confirmar: la solicitud no existe, no es tuya, o ya no está pendiente.';
+  end if;
+end;
+$$;
+grant execute on function respond_quote_request(uuid, jsonb, text) to authenticated;
+
+create or replace function reject_quote_request(p_id uuid, p_reason text, p_msg text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update quote_requests
+  set status = 'rejected', reject_reason = p_reason, reject_msg = p_msg, updated_at = now()
+  where id = p_id
+    and representative_id in (select id from representatives where profile_id = auth.uid())
+    and status = 'pending';
+  if not found then
+    raise exception 'No se pudo rechazar: la solicitud no existe, no es tuya, o ya no está pendiente.';
+  end if;
+end;
+$$;
+grant execute on function reject_quote_request(uuid, text, text) to authenticated;

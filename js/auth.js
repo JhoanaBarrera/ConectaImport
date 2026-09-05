@@ -80,9 +80,12 @@ async function ensureRepresentative(session, profile){
   if(existing) return existing;
   const meta = session.user.user_metadata || {};
   const repType = meta.rep_type || 'agencia_aduanas';
-  const steps = VERIF_STEPS_BY_TYPE[repType] || VERIF_STEPS_BY_TYPE.agencia_aduanas;
-  const verificationStatus = {};
-  steps.forEach(s => { verificationStatus[s.k] = !!s.auto; });
+  // Ningún paso arranca en true: la verificación (ni siquiera "identidad")
+  // no se autocompleta al registrarse — la marca manualmente el equipo de
+  // Conecta Importa una vez revisa lo que el representante declaró. Antes
+  // "identidad" nacía en true para todos los tipos, lo que en la práctica
+  // dejaba el filtro de "mínimo verificado" del marketplace sin ningún
+  // efecto real.
   const { data: created, error } = await supabaseClient
     .from('representatives')
     .insert({
@@ -92,7 +95,7 @@ async function ensureRepresentative(session, profile){
       nit_or_cedula: meta.nit_or_cedula || null,
       dian_license: meta.dian_license || null,
       legal_person_type: meta.legal_person_type || null,
-      verification_status: verificationStatus
+      verification_status: {}
     })
     .select().single();
   if(error) throw error;

@@ -35,11 +35,13 @@ const EXPECTED_OFFLINE_NOISE = [
 const MOCK_REPS = [
   { id:'rep-1', profile_id:'p-1', business_name:'Aduanas Rápidas SAS', rep_type:'agencia_aduanas', categories:['Electrónica / tecnología'], available:true, min_order_usd:0, commission_type:'pct', commission_value:3, rating:4.8, operations_count:34, bank_entity:'Bancolombia', bank_account_type:'Ahorros', bank_last4:'1234', verification_status:{identidad:true,licencia:true} },
   { id:'rep-2', profile_id:'p-2', business_name:'Sourcing Global', rep_type:'agente_sourcing', categories:['Textil / confección'], available:true, min_order_usd:500, commission_type:'pct', commission_value:5, rating:4.5, operations_count:12, bank_entity:'Davivienda', bank_account_type:'Corriente', bank_last4:'5678', verification_status:{identidad:true} },
-  { id:'rep-3', profile_id:'p-3', business_name:'Carga Directa', rep_type:'agente_carga', categories:['Hogar / ferretería'], available:true, min_order_usd:0, commission_type:'flat', commission_value:80, rating:4.2, operations_count:9, bank_entity:'BBVA', bank_account_type:'Ahorros', bank_last4:'9012', verification_status:{} },
-  { id:'rep-4', profile_id:'p-4', business_name:'Trading Bogotá', rep_type:'trading_company', categories:['Maquinaria / equipos industriales'], available:true, min_order_usd:0, commission_type:'pct', commission_value:8, rating:4.9, operations_count:50, bank_entity:'Bancolombia', bank_account_type:'Corriente', bank_last4:'3456', verification_status:{identidad:true,licencia:true,antecedentes:true,humana:true} }
+  { id:'rep-3', profile_id:'p-3', business_name:'Carga Directa', rep_type:'agente_carga', categories:['Hogar / ferretería'], available:true, min_order_usd:0, commission_type:'flat', commission_value:80, rating:4.2, operations_count:9, bank_entity:'BBVA', bank_account_type:'Ahorros', bank_last4:'9012', verification_status:{identidad:true} },
+  { id:'rep-4', profile_id:'p-4', business_name:'Trading Bogotá', rep_type:'trading_company', categories:['Maquinaria / equipos industriales'], available:true, min_order_usd:0, commission_type:'pct', commission_value:8, rating:4.9, operations_count:50, bank_entity:'Bancolombia', bank_account_type:'Corriente', bank_last4:'3456', verification_status:{identidad:true,licencia:true,antecedentes:true,humana:true} },
+  // Sin "identidad" verificada — regresión: NO debe aparecer en el marketplace.
+  { id:'rep-5', profile_id:'p-5', business_name:'Recién Registrado SAS', rep_type:'agente_sourcing', categories:['General'], available:true, min_order_usd:0, commission_type:'pct', commission_value:5, rating:0, operations_count:0, verification_status:{} }
 ];
 const MOCK_PRODUCTS = [
-  { id:'prod-1', representative_id:'rep-4', name:'Taladro industrial 20V', description:'Ya nacionalizado', price_usd:145, unit:'unidad', stock:20, active:true, representatives:{ id:'rep-4', business_name:'Trading Bogotá', rating:4.9, available:true } }
+  { id:'prod-1', representative_id:'rep-4', name:'Taladro industrial 20V', description:'Ya nacionalizado', price_usd:145, unit:'unidad', stock:20, active:true, representatives:{ id:'rep-4', business_name:'Trading Bogotá', rating:4.9, available:true, verification_status:{identidad:true} } }
 ];
 
 let passed = 0, failed = 0;
@@ -86,6 +88,12 @@ function fakeSupabaseInitScript(){
         }
         return {
           from(table){ return makeQuery(table); },
+          rpc(fnName, params){
+            // Las transiciones de estado (accept/respond/reject_quote_request)
+            // pasan por funciones de Postgres, no por .update() directo — acá
+            // solo se confirma que la llamada no truena, sin backend real.
+            return Promise.resolve({ data:null, error:null, __mock_rpc__:fnName, __mock_params__:params });
+          },
           auth: {
             getSession: async () => ({ data:{ session:null } }),
             signInAnonymously: async () => ({ data:{ session:{ user:{ id:'fake-anon-id', is_anonymous:true } } }, error:null }),
@@ -224,9 +232,11 @@ async function run(){
     await page.waitForTimeout(400);
 
     const repCount = await page.evaluate(() => allReps.length);
-    check('E1 se cargaron los 4 representantes de prueba', repCount === 4);
+    check('E1 se cargaron los 4 representantes verificados de prueba', repCount === 4);
     const cardsRendered = await page.evaluate(() => document.querySelectorAll('#repList .card, #repList [data-rep-id], #repList .rep-card').length > 0 || document.getElementById('repList').innerHTML.includes('Aduanas Rápidas'));
     check('E2 las tarjetas de representante se ven en pantalla', cardsRendered);
+    const unverifiedHidden = await page.evaluate(() => !allReps.some(r => r.id === 'rep-5'));
+    check('E3 regresión: representante sin identidad verificada NO aparece', unverifiedHidden);
     await page.close();
   }
 
