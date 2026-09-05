@@ -229,15 +229,60 @@ function closeLoginDropdown(){
   const menu = $('loginDropdownMenu');
   if(menu) menu.style.display = 'none';
 }
+
+// ---------------------------------------------------------------------
+// MENÚ MÓVIL: reemplaza el nav completo + login por debajo de 768px.
+// Panel accesible: atrapa el foco mientras está abierto, cierra con
+// Escape o al elegir una opción, y devuelve el foco al botón hamburguesa.
+// ---------------------------------------------------------------------
+let mobileMenuLastFocus = null;
+function toggleMobileMenu(){
+  const panel = $('mobileMenuPanel');
+  if(!panel) return;
+  if(panel.hidden) openMobileMenu(); else closeMobileMenu();
+}
+function openMobileMenu(){
+  const panel = $('mobileMenuPanel');
+  const backdrop = $('mobileMenuBackdrop');
+  const btn = $('mobileMenuBtn');
+  if(!panel || !backdrop || !btn) return;
+  mobileMenuLastFocus = document.activeElement;
+  panel.hidden = false;
+  backdrop.hidden = false;
+  btn.setAttribute('aria-expanded', 'true');
+  document.body.style.overflow = 'hidden';
+  const closeBtn = $('mobileMenuClose');
+  if(closeBtn) closeBtn.focus();
+  document.addEventListener('keydown', handleMobileMenuKeydown);
+}
+function closeMobileMenu(){
+  const panel = $('mobileMenuPanel');
+  const backdrop = $('mobileMenuBackdrop');
+  const btn = $('mobileMenuBtn');
+  if(!panel || panel.hidden) return;
+  panel.hidden = true;
+  backdrop.hidden = true;
+  if(btn) btn.setAttribute('aria-expanded', 'false');
+  document.body.style.overflow = '';
+  document.removeEventListener('keydown', handleMobileMenuKeydown);
+  (mobileMenuLastFocus || btn).focus();
+}
+function handleMobileMenuKeydown(e){
+  const panel = $('mobileMenuPanel');
+  if(!panel || panel.hidden) return;
+  if(e.key === 'Escape'){ closeMobileMenu(); return; }
+  if(e.key !== 'Tab') return;
+  const focusables = panel.querySelectorAll('a, button');
+  if(focusables.length === 0) return;
+  const first = focusables[0], last = focusables[focusables.length-1];
+  if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+}
 document.addEventListener('click', (e)=>{
   const menu = $('loginDropdownMenu');
   if(!menu || menu.style.display !== 'block') return;
   if(!menu.parentElement.contains(e.target)) closeLoginDropdown();
 });
-function scrollToLandingSection(id){
-  const el = $(id);
-  if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
-}
 function openInfoModal(html, wide){
   let backdrop = document.getElementById('infoModalBackdrop');
   if(backdrop) backdrop.remove();

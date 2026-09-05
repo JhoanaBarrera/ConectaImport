@@ -26,6 +26,8 @@
     font-family:'Inter',system-ui,sans-serif;
   }
   *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  @media (prefers-reduced-motion:reduce){ html{scroll-behavior:auto;} }
   body{margin:0; background:var(--paper); color:var(--ink); -webkit-font-smoothing:antialiased;}
   /* Anillo de foco visible y consistente para navegación por teclado —
      independiente del estilo propio de cada input/botón/tarjeta. */
@@ -42,7 +44,7 @@
   .brand-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px;}
   .brand{display:flex; align-items:center; gap:10px;}
   .brand-mark{width:30px;height:30px;border-radius:9px; background:var(--lime); color:var(--ink); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; font-family:'Space Grotesk',sans-serif;}
-  .brand-name{font-weight:700; font-size:16px; color:#fff; font-family:'Space Grotesk',sans-serif;}
+  .brand-name{font-weight:700; font-size:16px; color:#fff; font-family:'Space Grotesk',sans-serif; white-space:nowrap;}
   .brand-sub{font-size:11.5px; color:#8B90A0;}
   .account-pill{display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; padding:5px 10px; border-radius:20px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); color:#B9BEC9; white-space:nowrap;}
   .account-pill.logged{background:var(--status-ok-tint); border-color:var(--status-ok); color:var(--status-ok);}
@@ -245,40 +247,74 @@
   /* El header compacto ahora hace lo que antes hacían las dos tarjetas
      grandes "¿Cómo quieres entrar?" — login por rol vive aquí, así el
      hero (la propuesta de valor) puede ser lo primero que se ve. */
-  .landing-header{padding:14px 16px; background:var(--ink);}
-  .landing-header-inner{max-width:680px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:18px;}
-  .landing-nav{display:flex; align-items:center; gap:20px; list-style:none;}
-  .landing-nav button{font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; color:#B9BEC9; background:none; border:none; padding:2px; text-decoration:none; white-space:nowrap; cursor:pointer;}
-  .landing-nav button:hover{color:#fff;}
-  .landing-header-actions{display:flex; align-items:center; gap:10px; flex-shrink:0;}
+  /* Header sticky y propio de la marca (ancho máx. independiente del
+     .wrap del wizard) — un solo quiebre en 1024px separa el header
+     compacto móvil (marca + CTA + hamburguesa) del header de escritorio
+     (marca + nav centrado + login + CTA). */
+  .landing-header{position:sticky; top:0; z-index:40; padding:14px 16px; background:var(--ink); box-shadow:0 1px 0 rgba(255,255,255,.06); transition:padding .15s ease;}
+  .landing-header-inner{max-width:1220px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:18px;}
+  .landing-nav{display:none; align-items:center; justify-content:center; flex:1; gap:28px; list-style:none;}
+  .landing-nav a, .landing-nav button{font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; color:#B9BEC9; background:none; border:none; padding:4px 2px; text-decoration:none; white-space:nowrap; cursor:pointer; transition:color .12s ease;}
+  .landing-nav a:hover, .landing-nav button:hover{color:#fff;}
+  .landing-nav a:active, .landing-nav button:active{color:var(--lime);}
+  .landing-header-actions{display:none; align-items:center; gap:10px; flex-shrink:0;}
+  .landing-header-actions .btn{min-height:40px;}
   .login-dropdown{position:relative;}
   .login-dropdown-btn{background:transparent; color:#fff; border-color:rgba(255,255,255,.25); white-space:nowrap;}
   .login-dropdown-menu{position:absolute; top:calc(100% + 8px); right:0; background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:0 16px 32px rgba(0,0,0,.18); min-width:200px; overflow:hidden; z-index:30;}
   .login-dropdown-menu div{padding:11px 14px; font-size:12.5px; font-weight:600; color:var(--ink); cursor:pointer; white-space:nowrap;}
   .login-dropdown-menu div:hover{background:var(--paper);}
+  .login-dropdown-menu div:active{background:var(--line);}
   .login-dropdown-menu div:not(:last-child){border-bottom:1px solid var(--line);}
-  /* En pantallas angostas el header se queda con marca + acciones —
-     los enlaces de navegación no caben sin hacerlo crecer de alto. */
-  @media (max-width:760px){ .landing-nav{display:none;} }
-  @media (max-width:420px){ .landing-header-actions .login-dropdown-btn span.ld-label{display:none;} }
 
-  .hero{background:var(--ink); color:#fff; padding:8px 16px 0; position:relative; overflow:hidden;}
+  /* ---- Header móvil: solo marca + CTA compacto + hamburguesa ---- */
+  .mobile-header-actions{display:flex; align-items:center; gap:10px;}
+  .mobile-cta{background:var(--lime); color:var(--ink); font-family:'Inter',sans-serif; font-weight:700; font-size:12.5px; border:none; border-radius:999px; padding:0 16px; min-height:40px; min-width:44px; display:inline-flex; align-items:center; justify-content:center; white-space:nowrap; cursor:pointer; transition:background .15s ease, transform .1s ease;}
+  .mobile-cta:hover{background:#BEF52E;}
+  .mobile-cta:active{transform:scale(.96);}
+  .mobile-menu-btn{width:44px; height:44px; border-radius:10px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer; transition:background .15s ease;}
+  .mobile-menu-btn:hover{background:rgba(255,255,255,.16);}
+  .mobile-menu-btn:active{transform:scale(.94);}
+  .hamburger-icon{display:flex; flex-direction:column; gap:4px; width:18px;}
+  .hamburger-icon span{display:block; height:2px; width:100%; background:#fff; border-radius:2px;}
+
+  /* ---- Panel de menú móvil: dropdown accesible, atajo de foco en JS ---- */
+  .mobile-menu-backdrop{position:fixed; inset:0; background:rgba(11,19,38,.55); z-index:48;}
+  .mobile-menu-panel{position:fixed; top:0; right:0; bottom:0; width:min(320px,84vw); background:var(--ink); z-index:49; padding:20px 18px; overflow-y:auto; box-shadow:-16px 0 40px rgba(0,0,0,.35); flex-direction:column;}
+  .mobile-menu-panel:not([hidden]){display:flex;}
+  .mobile-menu-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;}
+  .mobile-menu-close{width:36px; height:36px; border-radius:9px; background:rgba(255,255,255,.08); border:none; color:#fff; font-size:15px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s ease;}
+  .mobile-menu-close:hover{background:rgba(255,255,255,.16);}
+  .mobile-menu-close:active{transform:scale(.94);}
+  .mobile-menu-nav{display:flex; flex-direction:column; gap:2px;}
+  .mobile-menu-nav a, .mobile-menu-nav button{font-family:'Inter',sans-serif; font-size:14.5px; font-weight:600; color:#E4E6EC; background:none; border:none; text-align:left; text-decoration:none; padding:12px 10px; min-height:44px; display:flex; align-items:center; border-radius:9px; cursor:pointer; transition:background .12s ease, color .12s ease;}
+  .mobile-menu-nav a:hover, .mobile-menu-nav button:hover{background:rgba(255,255,255,.07); color:#fff;}
+  .mobile-menu-nav a:active, .mobile-menu-nav button:active{background:rgba(255,255,255,.12);}
+  .mobile-menu-divider{height:1px; background:rgba(255,255,255,.12); margin:14px 2px;}
+  .mobile-menu-panel .btn-outline{background:transparent; color:#fff; border-color:rgba(255,255,255,.25); min-height:44px;}
+  .mobile-menu-panel .btn-outline:hover{background:rgba(255,255,255,.08);}
+
+  .hero{background:var(--ink); color:#fff; padding:60px 22px 0; position:relative; overflow:hidden;}
   .hero::before, .hero::after{content:""; position:absolute; width:420px; height:420px; border-radius:50%; filter:blur(90px); z-index:0;}
   .hero::before{background:radial-gradient(circle, rgba(45,156,219,.35), transparent 70%); top:-160px; right:-140px;}
   .hero::after{background:radial-gradient(circle, rgba(124,108,246,.30), transparent 70%); bottom:-180px; left:-140px;}
-  .hero-row{max-width:1100px; margin:0 auto; position:relative; z-index:1;}
-  .hero-inner{max-width:520px; margin:0 auto; text-align:center; position:relative; z-index:1; padding-bottom:36px;}
-  .hero-eyebrow{display:inline-block; font-size:11.5px; font-weight:700; color:var(--trust); text-transform:uppercase; letter-spacing:.08em; margin-bottom:16px;}
-  .hero-title{font-size:34px; font-weight:700; line-height:1.1; margin-bottom:14px; letter-spacing:-.02em;}
-  .hero-sub{font-size:14.5px; color:#B9BEC9; line-height:1.6; margin-bottom:26px;}
+  .hero-row{max-width:1220px; margin:0 auto; position:relative; z-index:1;}
+  .hero-inner{max-width:520px; margin:0 auto; text-align:center; position:relative; z-index:1; padding-bottom:48px; display:flex; flex-direction:column; align-items:center;}
+  .hero-eyebrow{display:inline-block; font-size:12.5px; font-weight:600; color:var(--lime); text-transform:uppercase; letter-spacing:.09em; margin-bottom:20px;}
+  .hero-title{font-size:clamp(34px,9.5vw,42px); font-weight:700; line-height:1.03; margin-bottom:22px; letter-spacing:-.02em;}
+  .hero-sub{font-size:18px; color:#B9BEC9; line-height:1.5; margin-bottom:32px; max-width:440px;}
   .btn-lg{padding:15px 28px; font-size:15px;}
-  .hero-note{font-size:12px; color:#767C8A; margin-top:14px;}
+  .hero-cta-primary{width:88%; min-height:52px; margin-bottom:16px; justify-content:center;}
+  .hero-note{font-size:12px; color:#767C8A; margin-bottom:20px;}
+  .hero-cta-secondary{font-family:'Inter',sans-serif; font-size:13.5px; font-weight:600; color:var(--trust); text-decoration:none; padding:6px 4px; border-radius:4px; transition:color .12s ease;}
+  .hero-cta-secondary:hover{color:#6ED0F5; text-decoration:underline;}
+  .hero-cta-secondary:active{color:var(--lime);}
 
 
   .trust-bar{position:relative; z-index:1; max-width:640px; margin:0 auto; display:flex; justify-content:center; gap:22px; flex-wrap:wrap; padding-bottom:34px; font-size:12px; color:#9CA3AF;}
   .trust-bar b{color:#fff; font-family:'Space Grotesk',sans-serif;}
 
-  .hero-mockup{position:relative; z-index:1; max-width:420px; margin:0 auto 40px; background:var(--ink-2); border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:18px; text-align:left; box-shadow:0 30px 60px -20px rgba(0,0,0,.5);}
+  .hero-mockup{position:relative; z-index:1; max-width:420px; width:100%; margin:0 auto 40px; background:var(--ink-2); border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:18px; text-align:left; box-shadow:0 30px 60px -20px rgba(0,0,0,.5);}
   .mockup-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
   .mockup-head .mtag{font-size:10.5px; font-weight:700; color:var(--status-progress); background:rgba(45,156,219,.15); padding:3px 9px; border-radius:20px; text-transform:uppercase; letter-spacing:.03em;}
   .mockup-route{display:flex; align-items:center; gap:8px; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; color:#fff; margin-bottom:14px;}
@@ -294,7 +330,8 @@
   .mockup-foot{display:flex; justify-content:space-between; font-size:11px; color:#8B90A0; margin-top:8px;}
 
   .feature-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:36px 0 28px;}
-  .feature-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px;}
+  .feature-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px; transition:box-shadow .15s ease, border-color .15s ease, transform .15s ease;}
+  .feature-card:hover{box-shadow:0 8px 24px rgba(11,19,38,.08); border-color:var(--line-strong); transform:translateY(-2px);}
   .feature-icon{width:38px;height:38px;border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:14px;}
   .feature-icon svg{width:19px;height:19px;}
   /* Mismo tratamiento pastel en las 4 — antes una tenía un cuadro oscuro
@@ -344,6 +381,7 @@
   .footer-col-title{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#8B90A0; margin-bottom:12px;}
   .footer-col a, .footer-col button, .footer-col .footer-link-disabled{display:block; width:100%; font-family:'Inter',sans-serif; font-size:12.5px; color:#B9BEC9; background:none; border:none; padding:0; text-align:left; text-decoration:none; margin-bottom:9px; cursor:pointer;}
   .footer-col a:hover, .footer-col button:hover{color:#fff;}
+  .footer-col a:active, .footer-col button:active{color:var(--lime);}
   .footer-col .footer-link-disabled{color:#5B6272; cursor:default;}
   .footer-social{display:flex; gap:8px;}
   .footer-social-icon{width:32px; height:32px; border-radius:50%; background:rgba(255,255,255,.06); display:flex; align-items:center; justify-content:center; color:#8B90A0; cursor:default;}
@@ -368,16 +406,29 @@
      A partir de acá el contenedor crece con la pantalla, y el hero pasa
      de apilado a dos columnas (texto a la izquierda, ejemplo a la derecha). */
   @media (min-width:840px){
-    .wrap, .app-header-inner, .landing-header-inner, .stats-strip-inner{max-width:840px;}
+    .wrap, .app-header-inner, .stats-strip-inner{max-width:840px;}
   }
   @media (min-width:1120px){
-    .wrap, .app-header-inner, .landing-header-inner{max-width:1000px;}
+    .wrap, .app-header-inner{max-width:1000px;}
   }
-  @media (min-width:960px){
-    .hero-row{display:flex; align-items:center; gap:52px; padding:32px 32px 8px;}
-    .hero-inner{flex:1 1 440px; max-width:540px; margin:0; text-align:left; padding-bottom:0;}
-    .hero-note{margin-top:14px;}
-    .hero-mockup{flex:0 0 380px; max-width:380px; margin:0;}
-    .trust-bar{justify-content:flex-start; padding-left:32px; padding-right:32px;}
+
+  /* Único quiebre del header/hero de marca: por debajo de 1024px se ve el
+     header compacto móvil (marca + CTA + hamburguesa) y el hero a una sola
+     columna; en 1024px o más aparece el header de escritorio completo
+     (nav + login + CTA) y el hero de dos columnas. */
+  @media (min-width:1024px){
+    .landing-nav{display:flex;}
+    .landing-header-actions{display:flex;}
+    .mobile-header-actions{display:none;}
+
+    .hero{padding:0 40px;}
+    .hero-row{display:flex; align-items:center; gap:72px; padding:96px 0 40px;}
+    .hero-inner{flex:1 1 560px; max-width:620px; margin:0; text-align:left; align-items:flex-start; padding-bottom:0;}
+    .hero-title{font-size:58px; line-height:1.03;}
+    .hero-sub{max-width:560px;}
+    .hero-cta-primary{width:auto; min-width:220px;}
+    .hero-note{margin-bottom:16px;}
+    .hero-mockup{flex:0 0 400px; max-width:400px; margin:0;}
+    .trust-bar{justify-content:flex-start; margin:0; max-width:none; padding-left:0; padding-right:0;}
   }
 

@@ -10,16 +10,16 @@
 
 <!-- ============ LANDING / INICIO ============ -->
 <div id="landingScreen">
-  <div class="landing-header">
+  <div class="landing-header" id="landingHeader">
     <div class="landing-header-inner">
       <div class="brand">
         <div class="brand-mark">CI</div>
         <div class="brand-name" style="color:#fff;">Conecta Importa</div>
       </div>
-      <nav class="landing-nav">
-        <button type="button" onclick="scrollToLandingSection('stepsSection')">Cómo funciona</button>
+      <nav class="landing-nav" aria-label="Navegación principal">
+        <a href="#stepsSection">Cómo funciona</a>
         <button type="button" onclick="goToRepPortal()">Para representantes</button>
-        <button type="button" onclick="scrollToLandingSection('heroSection')">Primera vez importando</button>
+        <a href="#heroSection">Primera vez importando</a>
         <button type="button" onclick="openAboutPanel()">Quiénes somos</button>
       </nav>
       <div class="landing-header-actions">
@@ -32,7 +32,30 @@
         </div>
         <button class="btn btn-primary btn-sm" onclick="startImporting()">Quiero importar</button>
       </div>
+      <div class="mobile-header-actions">
+        <button type="button" class="mobile-cta" onclick="startImporting()">Importar</button>
+        <button type="button" class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Abrir menú" aria-expanded="false" aria-controls="mobileMenuPanel" onclick="toggleMobileMenu()">
+          <span class="hamburger-icon"><span></span><span></span><span></span></span>
+        </button>
+      </div>
     </div>
+  </div>
+
+  <div class="mobile-menu-backdrop" id="mobileMenuBackdrop" onclick="closeMobileMenu()" hidden></div>
+  <div class="mobile-menu-panel" id="mobileMenuPanel" role="dialog" aria-modal="true" aria-label="Menú de navegación" hidden>
+    <div class="mobile-menu-head">
+      <div class="brand"><div class="brand-mark">CI</div><div class="brand-name">Conecta Importa</div></div>
+      <button type="button" class="mobile-menu-close" id="mobileMenuClose" aria-label="Cerrar menú" onclick="closeMobileMenu()">✕</button>
+    </div>
+    <nav class="mobile-menu-nav" aria-label="Navegación móvil">
+      <a href="#stepsSection" onclick="closeMobileMenu()">Cómo funciona</a>
+      <button type="button" onclick="closeMobileMenu(); goToRepPortal();">Para representantes</button>
+      <a href="#heroSection" onclick="closeMobileMenu()">Primera vez importando</a>
+      <button type="button" onclick="closeMobileMenu(); openAboutPanel();">Quiénes somos</button>
+    </nav>
+    <div class="mobile-menu-divider"></div>
+    <button type="button" class="btn btn-outline btn-block" onclick="closeMobileMenu(); openClientPortalGate('login');">Entrar como cliente</button>
+    <button type="button" class="btn btn-outline btn-block" style="margin-top:8px;" onclick="closeMobileMenu(); goToRepPortal();">Entrar como representante</button>
   </div>
 
   <div id="clientLoginGate" style="display:none;"></div>
@@ -41,11 +64,12 @@
   <div class="hero" id="heroSection">
     <div class="hero-row">
       <div class="hero-inner">
-        <span class="hero-eyebrow">Importación acompañada para pymes y emprendedores</span>
-        <h1 class="hero-title">Importa desde Colombia con un camino claro y costos visibles</h1>
-        <p class="hero-sub">Encuentra representantes verificados, cotiza tu pedido con costo real por unidad, y sigue el proceso paso a paso hasta que llegue a tu bodega en Colombia.</p>
-        <button class="btn btn-primary btn-lg" onclick="startImporting()">Quiero importar →</button>
-        <div class="hero-note">Explora gratis · no necesitas cuenta hasta confirmar tu pedido</div>
+        <span class="hero-eyebrow">Para pymes y emprendedores en Colombia</span>
+        <h1 class="hero-title">Importa a Colombia con un camino claro y costos visibles</h1>
+        <p class="hero-sub">Encuentra representantes verificados, conoce el costo real por unidad y sigue tu pedido hasta recibirlo en tu bodega.</p>
+        <button class="btn btn-primary btn-lg hero-cta-primary" onclick="startImporting()">Quiero importar →</button>
+        <div class="hero-note">Explora gratis · sin cuenta para comenzar</div>
+        <a href="#stepsSection" class="hero-cta-secondary">Cómo funciona →</a>
       </div>
 
       <div class="hero-mockup">
@@ -72,7 +96,7 @@
 
   <div class="stats-strip">
     <div class="stats-strip-inner">
-      <div class="stat-item"><div class="stat-phrase">Verificación real</div><div class="stat-label">identidad y licencia confirmadas antes de conectarte con un representante</div></div>
+      <div class="stat-item"><div class="stat-phrase">Representantes revisados</div><div class="stat-label">identidad y licencia revisadas antes de conectarte con un representante</div></div>
       <div class="stat-item"><div class="stat-phrase">Costos visibles</div><div class="stat-label">sabes el costo real por unidad antes de decidir</div></div>
       <div class="stat-item"><div class="stat-phrase">Seguimiento documental</div><div class="stat-label">fotos, documentos de aduana y estado del envío en un solo lugar</div></div>
     </div>
@@ -83,22 +107,22 @@
       <div class="feature-card">
         <div class="feature-icon c-trust"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg></div>
         <h4>Sabes por dónde empezar</h4>
-        <p>Te decimos si te conviene importar tú mismo, a través de un representante, o formalizar una empresa — según tu caso real.</p>
+        <p>Te decimos si conviene importar tú mismo, usar representante, o formalizar empresa.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon c-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
         <h4>Representantes verificados</h4>
-        <p>Agencias de aduanas, agentes de sourcing, agentes de carga y trading companies — cada uno con el rol legal que le corresponde, ya verificados.</p>
+        <p>Agencia de aduanas, sourcing, carga o trading — cada uno con su rol legal, verificado.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon c-trust"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="11" x2="8.01" y2="11"/><line x1="12" y1="11" x2="12.01" y2="11"/><line x1="16" y1="11" x2="16.01" y2="11"/><line x1="8" y1="15" x2="8.01" y2="15"/><line x1="12" y1="15" x2="12.01" y2="15"/><line x1="16" y1="15" x2="16.01" y2="15"/></svg></div>
         <h4>Costo real por unidad</h4>
-        <p>No solo el total del pedido: sabes cuánto te cuesta cada pieza puesta en tu bodega, y si tu margen de venta funciona.</p>
+        <p>Sabes cuánto cuesta cada pieza puesta en tu bodega, y si tu margen funciona.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon c-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></div>
         <h4>Seguimiento hasta la entrega</h4>
-        <p>Fotos del despacho, documentos de aduana y estado del envío, todo en un solo lugar hasta que recibes tu mercancía.</p>
+        <p>Fotos, documentos de aduana y estado del envío, todo en un solo lugar.</p>
       </div>
     </div>
 
@@ -127,7 +151,7 @@
       <p class="hint" style="margin-top:12px; margin-bottom:0;">🔒 El pago siempre es directo entre tú y tu representante — la plataforma nunca recibe ni retiene ese dinero.</p>
     </div>
 
-    <button class="btn btn-primary btn-block btn-lg" style="margin:8px 0 40px;" onclick="startImporting()">Quiero importar →</button>
+    <button class="btn btn-primary btn-block btn-lg" style="margin:8px 0 40px;" onclick="startImporting()">Encontrar mi camino para importar →</button>
   </div>
   </div>
 
@@ -135,7 +159,7 @@
     <div class="site-footer-inner">
       <div class="footer-col">
         <div class="footer-col-title">Producto</div>
-        <button type="button" onclick="scrollToLandingSection('stepsSection')">Cómo funciona</button>
+        <a href="#stepsSection">Cómo funciona</a>
         <button type="button" onclick="startImporting()">Para clientes</button>
         <button type="button" onclick="goToRepPortal()">Para representantes</button>
         <button type="button" onclick="openPricingPanel()">Precios</button>
