@@ -58,7 +58,6 @@ function backToLanding(){
   window.scrollTo(0,0);
 }
 function resetLandingView(){
-  $('portalSelectSection').style.display = 'block';
   $('marketingContent').style.display = 'block';
   $('clientLoginGate').style.display = 'none';
 }
@@ -73,7 +72,7 @@ function openClientPortalGate(mode){
   if(state.loggedIn){ enterApp(); return; }
   mode = mode || 'login';
   const isSignup = mode === 'signup';
-  $('portalSelectSection').style.display = 'none';
+  closeLoginDropdown();
   $('marketingContent').style.display = 'none';
   $('clientLoginGate').style.display = 'block';
   $('clientLoginGate').innerHTML = `
@@ -139,6 +138,7 @@ function continueAsGuest(){
   enterApp();
 }
 function goToRepPortal(){
+  closeLoginDropdown();
   $('appShell').style.display = 'none';
   $('landingScreen').style.display = 'none';
   $('repShell').style.display = 'block';
@@ -148,6 +148,67 @@ function goToRepPortal(){
   } else {
     renderRepLoginGate();
   }
+}
+
+// ---------------------------------------------------------------------
+// HEADER DE LANDING: dropdown de login + navegación en la misma página
+// ---------------------------------------------------------------------
+function toggleLoginDropdown(evt){
+  if(evt) evt.stopPropagation();
+  const menu = $('loginDropdownMenu');
+  if(!menu) return;
+  const open = menu.style.display === 'block';
+  menu.style.display = open ? 'none' : 'block';
+}
+function closeLoginDropdown(){
+  const menu = $('loginDropdownMenu');
+  if(menu) menu.style.display = 'none';
+}
+document.addEventListener('click', (e)=>{
+  const menu = $('loginDropdownMenu');
+  if(!menu || menu.style.display !== 'block') return;
+  if(!menu.parentElement.contains(e.target)) closeLoginDropdown();
+});
+function scrollToLandingSection(id){
+  const el = $(id);
+  if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+}
+function openInfoModal(html){
+  let backdrop = document.getElementById('infoModalBackdrop');
+  if(backdrop) backdrop.remove();
+  backdrop = document.createElement('div');
+  backdrop.id = 'infoModalBackdrop';
+  backdrop.className = 'info-modal-backdrop';
+  backdrop.onclick = (e)=>{ if(e.target === backdrop) backdrop.remove(); };
+  backdrop.innerHTML = `<div class="info-modal">${html}</div>`;
+  document.body.appendChild(backdrop);
+}
+function closeInfoModal(){
+  const backdrop = document.getElementById('infoModalBackdrop');
+  if(backdrop) backdrop.remove();
+}
+function openAboutPanel(){
+  openInfoModal(`
+    <h3>Quiénes somos</h3>
+    <p>Conecta Importa nace para ayudarte a importar sin perderte en el camino, conectándote con representantes verificados en Colombia — agencias de aduanas, agentes de sourcing, agentes de carga y trading companies.</p>
+    <p>Estamos en una etapa temprana: estamos construyendo la plataforma junto a nuestros primeros representantes y clientes, y siendo honestos sobre lo que todavía es nuevo (como las cifras de esta página, que hoy son metas, no datos verificados).</p>
+    <button class="btn btn-outline btn-block" onclick="closeInfoModal()">Cerrar</button>
+  `);
+}
+function openPricingPanel(){
+  const tiersHtml = PLATFORM_FEE_TIERS.map((t,i)=>{
+    const prev = i===0 ? 0 : PLATFORM_FEE_TIERS[i-1].maxFob;
+    const range = t.maxFob === Infinity ? `Más de ${fmtUsd(prev)}` : `${fmtUsd(prev)} – ${fmtUsd(t.maxFob)}`;
+    return `<div class="line-item"><span class="lbl">FOB ${range}</span><span class="val">${fmtUsd(t.fee)}</span></div>`;
+  }).join('');
+  openInfoModal(`
+    <h3>Precios</h3>
+    <p>Cotizar y responder solicitudes nunca tiene costo — ni para clientes ni para representantes.</p>
+    <p>Cuando aceptas una cotización confirmada, Conecta Importa cobra un fee de activación por tramos de valor FOB, aparte de la comisión de tu representante (que siempre ves con transparencia antes de aceptar):</p>
+    ${tiersHtml}
+    <p style="margin-top:10px;">Estos montos son de ejemplo — se van a ajustar cuando haya datos reales de representantes y de las primeras transacciones.</p>
+    <button class="btn btn-outline btn-block" onclick="closeInfoModal()">Cerrar</button>
+  `);
 }
 function renderRepLoginGate(mode){
   mode = mode || 'login';

@@ -202,25 +202,26 @@
   }
 
   /* ---------- LANDING ---------- */
-  .landing-header{padding:18px 16px; background:var(--ink);}
-  .landing-header-inner{max-width:680px; margin:0 auto; display:flex; align-items:center;}
+  /* El header compacto ahora hace lo que antes hacían las dos tarjetas
+     grandes "¿Cómo quieres entrar?" — login por rol vive aquí, así el
+     hero (la propuesta de valor) puede ser lo primero que se ve. */
+  .landing-header{padding:14px 16px; background:var(--ink);}
+  .landing-header-inner{max-width:680px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:18px;}
+  .landing-nav{display:flex; align-items:center; gap:20px; list-style:none;}
+  .landing-nav a{font-size:12.5px; font-weight:600; color:#B9BEC9; text-decoration:none; white-space:nowrap; cursor:pointer;}
+  .landing-nav a:hover{color:#fff;}
+  .landing-header-actions{display:flex; align-items:center; gap:10px; flex-shrink:0;}
+  .login-dropdown{position:relative;}
+  .login-dropdown-btn{background:transparent; color:#fff; border-color:rgba(255,255,255,.25); white-space:nowrap;}
+  .login-dropdown-menu{position:absolute; top:calc(100% + 8px); right:0; background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:0 16px 32px rgba(0,0,0,.18); min-width:200px; overflow:hidden; z-index:30;}
+  .login-dropdown-menu div{padding:11px 14px; font-size:12.5px; font-weight:600; color:var(--ink); cursor:pointer; white-space:nowrap;}
+  .login-dropdown-menu div:hover{background:var(--paper);}
+  .login-dropdown-menu div:not(:last-child){border-bottom:1px solid var(--line);}
+  /* En pantallas angostas el header se queda con marca + acciones —
+     los enlaces de navegación no caben sin hacerlo crecer de alto. */
+  @media (max-width:760px){ .landing-nav{display:none;} }
+  @media (max-width:420px){ .landing-header-actions .login-dropdown-btn span.ld-label{display:none;} }
 
-  .portal-select-title{font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); text-align:center; margin:20px 0 12px;}
-  .portal-select-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:28px;}
-  /* Las dos tarjetas pesan igual — mismo fondo claro, solo se diferencian
-     por el acento de color arriba y en el ícono (cliente=azul, representante=marino). */
-  .portal-card{border:1.5px solid var(--line-strong); border-top:3px solid transparent; border-radius:var(--radius); padding:18px; cursor:pointer; text-align:center; background:var(--surface); transition:transform .12s ease, border-color .12s ease;}
-  .portal-card:hover{transform:translateY(-2px); border-color:var(--line-strong);}
-  .portal-card.accent-trust{border-top-color:var(--trust);}
-  .portal-card.accent-ink{border-top-color:var(--ink);}
-  .portal-card-icon{width:44px;height:44px;border-radius:12px; margin:0 auto 10px; display:flex; align-items:center; justify-content:center;}
-  .portal-card-icon svg{width:22px;height:22px;}
-  .portal-card.accent-trust .portal-card-icon{background:var(--trust-tint); color:var(--trust);}
-  .portal-card.accent-ink .portal-card-icon{background:var(--ink); color:#fff;}
-  .portal-card h3{font-size:14.5px; font-weight:700; margin-bottom:6px; font-family:'Space Grotesk',sans-serif;}
-  .portal-card p{font-size:11.5px; color:var(--ink-soft); line-height:1.5; margin:0 0 10px;}
-  .portal-card-cta{font-size:12px; font-weight:700; color:var(--trust);}
-  @media (max-width:480px){ .portal-select-grid{grid-template-columns:1fr;} }
   .hero{background:var(--ink); color:#fff; padding:8px 16px 0; position:relative; overflow:hidden;}
   .hero::before, .hero::after{content:""; position:absolute; width:420px; height:420px; border-radius:50%; filter:blur(90px); z-index:0;}
   .hero::before{background:radial-gradient(circle, rgba(45,156,219,.35), transparent 70%); top:-160px; right:-140px;}
@@ -281,6 +282,35 @@
     }
   }
   .steps-preview-num{width:24px;height:24px;border-radius:50%; background:var(--trust-tint); color:var(--trust); font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-family:'Space Grotesk',sans-serif;}
+
+  /* ---------- FRANJA DE CIFRAS (prueba social) ---------- */
+  .stats-strip{background:var(--surface); border-top:1px solid var(--line); border-bottom:1px solid var(--line);}
+  .stats-strip-inner{max-width:680px; margin:0 auto; padding:22px 16px; display:flex; justify-content:center; gap:32px; flex-wrap:wrap; text-align:center;}
+  .stat-item{min-width:120px;}
+  .stat-num{font-size:22px; font-weight:700; color:var(--ink); font-family:'Space Grotesk',sans-serif;}
+  .stat-label{font-size:11.5px; color:var(--ink-soft); margin-top:2px;}
+  .stats-strip-note{display:block; text-align:center; font-size:10.5px; color:var(--ink-faint); padding:0 16px 14px;}
+
+  /* ---------- FOOTER ---------- */
+  .site-footer{background:var(--ink); color:#B9BEC9; margin-top:8px;}
+  .site-footer-inner{max-width:680px; margin:0 auto; padding:36px 16px 20px; display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:24px;}
+  .footer-col-title{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#8B90A0; margin-bottom:12px;}
+  .footer-col a, .footer-col .footer-link-disabled{display:block; font-size:12.5px; color:#B9BEC9; text-decoration:none; margin-bottom:9px; cursor:pointer;}
+  .footer-col a:hover{color:#fff;}
+  .footer-col .footer-link-disabled{color:#5B6272; cursor:default;}
+  .footer-social{display:flex; gap:8px;}
+  .footer-social-icon{width:32px; height:32px; border-radius:50%; background:rgba(255,255,255,.06); display:flex; align-items:center; justify-content:center; color:#8B90A0; cursor:default;}
+  .footer-social-icon svg{width:15px;height:15px;}
+  .site-footer-bottom{border-top:1px solid rgba(255,255,255,.1); text-align:center; font-size:11.5px; color:#767C8A; padding:16px;}
+  @media (min-width:840px){ .site-footer-inner{max-width:840px;} }
+  @media (min-width:1120px){ .site-footer-inner{max-width:1000px;} }
+
+  /* ---------- PANEL DE INFO (Quiénes somos / Precios) ---------- */
+  .info-modal-backdrop{position:fixed; inset:0; background:rgba(15,23,41,.55); z-index:50; display:flex; align-items:center; justify-content:center; padding:16px;}
+  .info-modal{background:var(--surface); border-radius:var(--radius); max-width:420px; width:100%; padding:24px; box-shadow:0 24px 48px rgba(0,0,0,.3);}
+  .info-modal h3{font-size:16px; font-family:'Space Grotesk',sans-serif; margin:0 0 12px;}
+  .info-modal p{font-size:13px; color:var(--ink-soft); line-height:1.6; margin:0 0 10px;}
+  .info-modal .line-item{font-size:12.5px;}
 
   /* ---------- ESCRITORIO ----------
      Todo el sitio estaba pensado a 680px fijos — en pantallas grandes

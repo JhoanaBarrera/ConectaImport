@@ -16,25 +16,21 @@
         <div class="brand-mark">CI</div>
         <div class="brand-name" style="color:#fff;">Conecta Importa</div>
       </div>
-    </div>
-  </div>
-
-  <div id="portalSelectSection">
-    <div class="wrap">
-      <div class="portal-select-title">¿Cómo quieres entrar?</div>
-      <div class="portal-select-grid">
-        <div class="portal-card accent-trust" onclick="openClientPortalGate('login')">
-          <div class="portal-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg></div>
-          <h3>Portal Cliente</h3>
-          <p>Quiero importar un producto y necesito guía, representante y seguimiento.</p>
-          <span class="portal-card-cta">Entrar como cliente →</span>
+      <nav class="landing-nav">
+        <a onclick="scrollToLandingSection('stepsSection')">Cómo funciona</a>
+        <a onclick="goToRepPortal()">Para representantes</a>
+        <a onclick="scrollToLandingSection('heroSection')">Primera vez importando</a>
+        <a onclick="openAboutPanel()">Quiénes somos</a>
+      </nav>
+      <div class="landing-header-actions">
+        <div class="login-dropdown">
+          <button class="btn btn-outline btn-sm login-dropdown-btn" onclick="toggleLoginDropdown(event)">Iniciar sesión <span class="ld-label">▾</span></button>
+          <div class="login-dropdown-menu" id="loginDropdownMenu" style="display:none;">
+            <div onclick="closeLoginDropdown(); openClientPortalGate('login');">Entrar como cliente</div>
+            <div onclick="closeLoginDropdown(); goToRepPortal();">Entrar como representante</div>
+          </div>
         </div>
-        <div class="portal-card accent-ink" onclick="goToRepPortal()">
-          <div class="portal-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><line x1="9" y1="8" x2="9.01" y2="8"/><line x1="15" y1="8" x2="15.01" y2="8"/><line x1="9" y1="12" x2="9.01" y2="12"/><line x1="15" y1="12" x2="15.01" y2="12"/><line x1="9" y1="16" x2="9.01" y2="16"/><line x1="15" y1="16" x2="15.01" y2="16"/></svg></div>
-          <h3>Portal Representante / Agencia</h3>
-          <p>Soy agencia de aduanas, agente de sourcing, agente de carga o trading company.</p>
-          <span class="portal-card-cta">Entrar como representante →</span>
-        </div>
+        <button class="btn btn-primary btn-sm" onclick="openClientPortalGate('login')">Quiero importar</button>
       </div>
     </div>
   </div>
@@ -42,7 +38,7 @@
   <div id="clientLoginGate" style="display:none;"></div>
 
   <div id="marketingContent">
-  <div class="hero">
+  <div class="hero" id="heroSection">
     <div class="hero-row">
       <div class="hero-inner">
         <span class="hero-eyebrow">Importación acompañada para pymes y emprendedores</span>
@@ -74,6 +70,15 @@
     </div>
   </div>
 
+  <div class="stats-strip">
+    <div class="stats-strip-inner">
+      <div class="stat-item"><div class="stat-num">+120</div><div class="stat-label">representantes verificados</div></div>
+      <div class="stat-item"><div class="stat-num">+800</div><div class="stat-label">importaciones acompañadas</div></div>
+      <div class="stat-item"><div class="stat-num">6 países</div><div class="stat-label">de origen (China, EE. UU., México...)</div></div>
+    </div>
+    <span class="stats-strip-note">Cifras de ejemplo — meta mientras la plataforma crece, todavía no son datos verificados.</span>
+  </div>
+
   <div class="wrap">
     <div class="feature-grid">
       <div class="feature-card">
@@ -98,7 +103,7 @@
       </div>
     </div>
 
-    <div class="steps-preview">
+    <div class="steps-preview" id="stepsSection">
       <div class="steps-preview-title">Cómo funciona</div>
       <div class="steps-preview-row">
         <div class="steps-preview-item"><span class="steps-preview-num">1</span>Cuéntanos tu situación</div>
@@ -111,6 +116,37 @@
     <button class="btn btn-primary btn-block btn-lg" style="margin:8px 0 40px;" onclick="openClientPortalGate('login')">Quiero importar →</button>
   </div>
   </div>
+
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <div class="footer-col">
+        <div class="footer-col-title">Producto</div>
+        <a onclick="scrollToLandingSection('stepsSection')">Cómo funciona</a>
+        <a onclick="openClientPortalGate('login')">Para clientes</a>
+        <a onclick="goToRepPortal()">Para representantes</a>
+        <a onclick="openPricingPanel()">Precios</a>
+      </div>
+      <div class="footer-col">
+        <div class="footer-col-title">Empresa</div>
+        <a onclick="openAboutPanel()">Quiénes somos</a>
+        <span class="footer-link-disabled">Blog (próximamente)</span>
+        <a href="https://wa.me/573000000000" target="_blank" rel="noopener">Contacto</a>
+      </div>
+      <div class="footer-col">
+        <div class="footer-col-title">Legal</div>
+        <span class="footer-link-disabled">Términos y condiciones (próximamente)</span>
+        <span class="footer-link-disabled">Política de privacidad (próximamente)</span>
+      </div>
+      <div class="footer-col">
+        <div class="footer-col-title">Síguenos</div>
+        <div class="footer-social">
+          <span class="footer-social-icon" title="Próximamente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><line x1="17.5" y1="6.5" x2="17.5" y2="6.5"/></svg></span>
+          <span class="footer-social-icon" title="Próximamente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h4.5v16H4z"/><circle cx="6.2" cy="6.2" r="1.4" fill="currentColor" stroke="none"/><path d="M11.5 9h4.2v11h-4.2z"/><path d="M11.5 13.2c0-2.4 1.6-4.2 4-4.2 2.6 0 3.5 1.8 3.5 4.5V20h-4.2v-5.5c0-1-.4-1.8-1.4-1.8-.8 0-1.3.6-1.5 1.1"/></svg></span>
+        </div>
+      </div>
+    </div>
+    <div class="site-footer-bottom">© 2026 Conecta Importa. Todos los derechos reservados.</div>
+  </footer>
 </div>
 
 <!-- ============ APP (flujo de importación) ============ -->
