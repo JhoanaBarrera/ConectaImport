@@ -17,10 +17,10 @@
         <div class="brand-name" style="color:#fff;">Conecta Importa</div>
       </div>
       <nav class="landing-nav">
-        <a onclick="scrollToLandingSection('stepsSection')">Cómo funciona</a>
-        <a onclick="goToRepPortal()">Para representantes</a>
-        <a onclick="scrollToLandingSection('heroSection')">Primera vez importando</a>
-        <a onclick="openAboutPanel()">Quiénes somos</a>
+        <button type="button" onclick="scrollToLandingSection('stepsSection')">Cómo funciona</button>
+        <button type="button" onclick="goToRepPortal()">Para representantes</button>
+        <button type="button" onclick="scrollToLandingSection('heroSection')">Primera vez importando</button>
+        <button type="button" onclick="openAboutPanel()">Quiénes somos</button>
       </nav>
       <div class="landing-header-actions">
         <div class="login-dropdown">
@@ -72,11 +72,10 @@
 
   <div class="stats-strip">
     <div class="stats-strip-inner">
-      <div class="stat-item"><div class="stat-num">+120</div><div class="stat-label">representantes verificados</div></div>
-      <div class="stat-item"><div class="stat-num">+800</div><div class="stat-label">importaciones acompañadas</div></div>
-      <div class="stat-item"><div class="stat-num">6 países</div><div class="stat-label">de origen (China, EE. UU., México...)</div></div>
+      <div class="stat-item"><div class="stat-phrase">4 tipos de experto</div><div class="stat-label">agencia de aduanas, sourcing, carga y trading — cada uno con su rol legal</div></div>
+      <div class="stat-item"><div class="stat-phrase">Costos visibles</div><div class="stat-label">sabes el costo real por unidad antes de decidir</div></div>
+      <div class="stat-item"><div class="stat-phrase">Pago directo</div><div class="stat-label">nunca pasa por la plataforma — vas directo a tu representante</div></div>
     </div>
-    <span class="stats-strip-note">Cifras de ejemplo — meta mientras la plataforma crece, todavía no son datos verificados.</span>
   </div>
 
   <div class="wrap">
@@ -113,6 +112,21 @@
       </div>
     </div>
 
+    <div class="responsibility-card">
+      <div class="responsibility-title">¿Quién responde por cada parte?</div>
+      <div class="responsibility-grid">
+        <div class="responsibility-col">
+          <div class="responsibility-who">Conecta Importa</div>
+          <p>Coordina el proceso, verifica a cada representante antes de habilitarlo, y guarda la trazabilidad de tu pedido (fotos, documentos, estados) en un solo lugar.</p>
+        </div>
+        <div class="responsibility-col">
+          <div class="responsibility-who">Tu representante</div>
+          <p>Hace el sourcing, la declaración de aduana o el transporte de carga según su rol legal — y responde directamente por lo que pactó contigo en tu cotización confirmada.</p>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:12px; margin-bottom:0;">🔒 El pago siempre es directo entre tú y tu representante — la plataforma nunca recibe ni retiene ese dinero.</p>
+    </div>
+
     <button class="btn btn-primary btn-block btn-lg" style="margin:8px 0 40px;" onclick="startImporting()">Quiero importar →</button>
   </div>
   </div>
@@ -121,21 +135,21 @@
     <div class="site-footer-inner">
       <div class="footer-col">
         <div class="footer-col-title">Producto</div>
-        <a onclick="scrollToLandingSection('stepsSection')">Cómo funciona</a>
-        <a onclick="startImporting()">Para clientes</a>
-        <a onclick="goToRepPortal()">Para representantes</a>
-        <a onclick="openPricingPanel()">Precios</a>
+        <button type="button" onclick="scrollToLandingSection('stepsSection')">Cómo funciona</button>
+        <button type="button" onclick="startImporting()">Para clientes</button>
+        <button type="button" onclick="goToRepPortal()">Para representantes</button>
+        <button type="button" onclick="openPricingPanel()">Precios</button>
       </div>
       <div class="footer-col">
         <div class="footer-col-title">Empresa</div>
-        <a onclick="openAboutPanel()">Quiénes somos</a>
+        <button type="button" onclick="openAboutPanel()">Quiénes somos</button>
         <span class="footer-link-disabled">Blog (próximamente)</span>
         <a href="https://wa.me/573000000000" target="_blank" rel="noopener">Contacto</a>
       </div>
       <div class="footer-col">
         <div class="footer-col-title">Legal</div>
-        <a onclick="openTermsPanel()">Términos y condiciones</a>
-        <a onclick="openPrivacyPanel()">Política de privacidad</a>
+        <button type="button" onclick="openTermsPanel()">Términos y condiciones</button>
+        <button type="button" onclick="openPrivacyPanel()">Política de privacidad</button>
       </div>
       <div class="footer-col">
         <div class="footer-col-title">Síguenos</div>
@@ -151,7 +165,7 @@
 
 <!-- ============ APP (flujo de importación) ============ -->
 <div id="appShell" style="display:none;">
-<button onclick="openSupport()" style="position:fixed; bottom:16px; right:16px; width:52px;height:52px;border-radius:50%; background:var(--lime); border:none; font-size:21px; cursor:pointer; box-shadow:0 10px 24px rgba(0,0,0,.25); z-index:35;">💬</button>
+<button onclick="openSupport()" aria-label="Hablar con soporte" style="position:fixed; bottom:16px; right:16px; width:52px;height:52px;border-radius:50%; background:var(--lime); border:none; font-size:21px; cursor:pointer; box-shadow:0 10px 24px rgba(0,0,0,.25); z-index:35;">💬</button>
 
 <div class="app-header">
   <div class="app-header-inner">
@@ -164,7 +178,7 @@
         </div>
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
-        <button onclick="toggleNotifPanel()" style="position:relative; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:10px; width:32px; height:32px; cursor:pointer; font-size:14px;">
+        <button onclick="toggleNotifPanel()" aria-label="Ver notificaciones" style="position:relative; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:10px; width:32px; height:32px; cursor:pointer; font-size:14px;">
           📧
           <span id="notifBadge" style="display:none; position:absolute; top:-5px; right:-5px; background:var(--lime); color:var(--ink); font-size:9px; font-weight:800; border-radius:20px; padding:1px 5px;">0</span>
         </button>
@@ -189,71 +203,88 @@
     </div>
 
 
-    <div class="card tight" id="historyCard" style="display:none; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleHistory()">
+    <button type="button" class="card tight" id="historyCard" style="display:none; width:100%; justify-content:space-between; align-items:center; cursor:pointer; font-family:inherit; text-align:left;" onclick="toggleHistory()">
       <span style="font-size:13px; font-weight:600;">📦 Mis pedidos anteriores</span>
       <span class="hint" style="margin:0;">Volver a pedir en 1 clic →</span>
-    </div>
+    </button>
     <div id="historyPanel" style="display:none; margin-bottom:16px;"></div>
 
-    <div class="card">
-      <div class="section-title">¿Qué quieres traer?</div>
-      <div class="grid">
-        <div>
-          <label class="field-label">Categoría del producto</label>
-          <select id="p_cat" onchange="renderPermitsCard()">
-            <option>Repuestos / autopartes</option>
-            <option>Farma / dispositivos médicos</option>
-            <option>Textil / confección</option>
-            <option>Calzado / marroquinería</option>
-            <option>Electrónica / tecnología</option>
-            <option>Juguetes</option>
-            <option>Cosméticos / cuidado personal</option>
-            <option>Alimentos / suplementos</option>
-            <option>Hogar / ferretería</option>
-            <option>Muebles / decoración</option>
-            <option>Maquinaria / equipos industriales</option>
-            <option>Joyería / bisutería</option>
-            <option>Otro</option>
-          </select>
+    <div class="substep-track" id="profileSubstepTrack" aria-hidden="true"></div>
+
+    <div id="profileSub1" class="profile-substep">
+      <div class="card">
+        <div class="section-title">¿Qué quieres traer?</div>
+        <div class="grid">
+          <div>
+            <label class="field-label">Categoría del producto</label>
+            <select id="p_cat" onchange="renderPermitsCard()">
+              <option>Repuestos / autopartes</option>
+              <option>Farma / dispositivos médicos</option>
+              <option>Textil / confección</option>
+              <option>Calzado / marroquinería</option>
+              <option>Electrónica / tecnología</option>
+              <option>Juguetes</option>
+              <option>Cosméticos / cuidado personal</option>
+              <option>Alimentos / suplementos</option>
+              <option>Hogar / ferretería</option>
+              <option>Muebles / decoración</option>
+              <option>Maquinaria / equipos industriales</option>
+              <option>Joyería / bisutería</option>
+              <option>Otro</option>
+            </select>
+          </div>
         </div>
+        <div id="permitsCard" style="margin-top:14px;"></div>
       </div>
-      <div id="permitsCard" style="margin-top:14px;"></div>
+      <button class="btn btn-primary btn-block" onclick="goProfileSubstep(2)">Continuar →</button>
     </div>
 
-    <div class="card">
-      <div class="section-title">¿Ya sabes quién te lo puede vender?</div>
-      <div class="choice-list" id="supplierChoices"></div>
-      <div id="supplierGuide"></div>
-    </div>
-
-    <div class="card">
-      <div class="section-title">¿Has importado antes?</div>
-      <div class="choice-list" id="statusChoices"></div>
-    </div>
-
-    <div class="card">
-      <div class="grid">
-        <div>
-          <label class="field-label">¿Cada cuánto crees que vas a importar?</label>
-          <select id="p_freq">
-            <option value="occasional">De vez en cuando (1–2 veces al año)</option>
-            <option value="several">Varias veces al año (3–10)</option>
-            <option value="frequent">Seguido — es mi negocio</option>
-          </select>
-        </div>
-        <div>
-          <label class="field-label">¿Más o menos cuánto dinero al año? (USD)</label>
-          <select id="p_value">
-            <option value="v1">Menos de $1.000</option>
-            <option value="v2">$1.000 – $5.000</option>
-            <option value="v3">$5.000 – $20.000</option>
-            <option value="v4">Más de $20.000</option>
-          </select>
-        </div>
+    <div id="profileSub2" class="profile-substep" style="display:none;">
+      <div class="card">
+        <div class="section-title">¿Ya sabes quién te lo puede vender?</div>
+        <div class="choice-list" id="supplierChoices"></div>
+        <div id="supplierGuide"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">¿Has importado antes?</div>
+        <div class="choice-list" id="statusChoices"></div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-outline" onclick="goProfileSubstep(1)">← Volver</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="goProfileSubstep(3)">Continuar →</button>
       </div>
     </div>
 
-    <button class="btn btn-primary btn-block" onclick="renderProfileResult()">Ver mi camino recomendado</button>
+    <div id="profileSub3" class="profile-substep" style="display:none;">
+      <div class="card">
+        <div class="section-title">Presupuesto aproximado</div>
+        <p class="hint" style="margin-top:0;">Es solo un estimado — puedes ajustarlo más adelante.</p>
+        <div class="grid">
+          <div>
+            <label class="field-label">¿Cada cuánto crees que vas a importar?</label>
+            <select id="p_freq">
+              <option value="occasional">De vez en cuando (1–2 veces al año)</option>
+              <option value="several">Varias veces al año (3–10)</option>
+              <option value="frequent">Seguido — es mi negocio</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">¿Más o menos cuánto dinero al año? (USD)</label>
+            <select id="p_value">
+              <option value="v1">Menos de $1.000</option>
+              <option value="v2">$1.000 – $5.000</option>
+              <option value="v3">$5.000 – $20.000</option>
+              <option value="v4">Más de $20.000</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-outline" onclick="goProfileSubstep(2)">← Volver</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="renderProfileResult()">Ver mi camino recomendado</button>
+      </div>
+    </div>
+
     <div id="profileResult" style="display:none; margin-top:16px;"></div>
   </div>
 

@@ -7,15 +7,36 @@ const $ = id => document.getElementById(id);
 const EYE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
 const EYE_OFF_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 5c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
 function pwFieldHtml(id, autocomplete, placeholder){
-  return `<div class="pw-field"><input type="password" id="${id}" autocomplete="${autocomplete}" placeholder="${placeholder}"><button type="button" class="pw-toggle" tabindex="-1" onclick="togglePasswordVisibility('${id}', this)">${EYE_ICON}</button></div>`;
+  return `<div class="pw-field"><input type="password" id="${id}" autocomplete="${autocomplete}" placeholder="${placeholder}"><button type="button" class="pw-toggle" aria-label="Mostrar contraseña" onclick="togglePasswordVisibility('${id}', this)">${EYE_ICON}</button></div>`;
 }
+// Las tarjetas .choice (categoría, proveedor, incoterm, modo de envío, etc.)
+// se seleccionan con onclick en muchas plantillas distintas del wizard —
+// ninguna era operable por teclado ni tenía estado accesible. En vez de
+// tocar cada plantilla, se refuerza de forma centralizada cada vez que el
+// DOM cambia.
+function enhanceChoiceAccessibility(){
+  document.querySelectorAll('.choice').forEach(el => {
+    if(!el.hasAttribute('tabindex')) el.tabIndex = 0;
+    if(!el.hasAttribute('role')) el.setAttribute('role', 'button');
+    el.setAttribute('aria-pressed', el.classList.contains('active') ? 'true' : 'false');
+  });
+}
+document.addEventListener('keydown', (e) => {
+  if((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('choice')){
+    e.preventDefault();
+    e.target.click();
+  }
+});
+new MutationObserver(enhanceChoiceAccessibility).observe(document.documentElement, { childList:true, subtree:true });
+
 function togglePasswordVisibility(inputId, btn){
   const input = $(inputId);
   const showing = input.type === 'text';
   input.type = showing ? 'password' : 'text';
   btn.innerHTML = showing ? EYE_ICON : EYE_OFF_ICON;
+  btn.setAttribute('aria-label', showing ? 'Mostrar contraseña' : 'Ocultar contraseña');
 }
-let state = { status:'sinRutNoQuiere', hasSupplier:'yes', path:'B', verif:'basic', selectedRepId:null, selectedProduct:null, mode:'AIR', paid:false, maxReached:0, loggedIn:false, accountEmail:null, accountId:null, quoteRequestDbId:null, lastQuote:null, preliminaryQuote:null, groupFreightOverride:null, compareMode:false, trmAtQuote:null, priceLocked:false, contactEmail:null, contactWhatsapp:null, requestId:null, notifications:[], repResponded:false, repRealQuote:null, repNote:null, rejected:false, rejectReason:null, rejectMsg:null, tlCurrentIndex:-1, tlNotes:{}, tlFiles:{}, repLoggedIn:false, repEmail:null, repRecordId:null, receipt:null, faqClientSeen:{}, faqRepSeen:{}, repVerifType:null, repVerifStatus:{}, supplierQuoteAttached:false, repAvailable:true, repMinOrder:0, clientRating:null, pendingStars:0, incotermKnowledge:'unknown', incoterm:'FOB' };
+let state = { status:'sinRutNoQuiere', hasSupplier:'yes', path:'B', verif:'basic', selectedRepId:null, selectedProduct:null, profileSubstep:1, mode:'AIR', paid:false, maxReached:0, loggedIn:false, accountEmail:null, accountId:null, quoteRequestDbId:null, lastQuote:null, preliminaryQuote:null, groupFreightOverride:null, compareMode:false, trmAtQuote:null, priceLocked:false, contactEmail:null, contactWhatsapp:null, requestId:null, notifications:[], repResponded:false, repRealQuote:null, repNote:null, rejected:false, rejectReason:null, rejectMsg:null, tlCurrentIndex:-1, tlNotes:{}, tlFiles:{}, repLoggedIn:false, repEmail:null, repRecordId:null, receipt:null, faqClientSeen:{}, faqRepSeen:{}, repVerifType:null, repVerifStatus:{}, supplierQuoteAttached:false, repAvailable:true, repMinOrder:0, clientRating:null, pendingStars:0, incotermKnowledge:'unknown', incoterm:'FOB' };
 
 // ---------------------------------------------------------------------
 // NOTIFICACIONES (registro tipo correo) + SOPORTE HUMANO
@@ -1146,6 +1167,30 @@ function renderPermitsCard(){
 }
 renderPermitsCard();
 
+// El paso 1 concentraba categoría, proveedor, experiencia tributaria y
+// presupuesto en una sola pantalla larga — se divide en 3 sub-pasos cortos,
+// cada uno con una sola decisión principal (más fácil de escanear en móvil).
+function goProfileSubstep(n){
+  state.profileSubstep = n;
+  [1,2,3].forEach(i => { const el = $('profileSub'+i); if(el) el.style.display = (i===n) ? 'block' : 'none'; });
+  renderProfileSubstepTrack();
+  const screen = document.querySelector('.screen[data-screen="0"]');
+  if(screen) screen.scrollIntoView({behavior:'smooth', block:'start'});
+}
+function renderProfileSubstepTrack(){
+  const n = state.profileSubstep || 1;
+  const track = $('profileSubstepTrack');
+  if(!track) return;
+  const labels = ['Producto','Situación','Presupuesto'];
+  track.innerHTML = `
+    <span class="substep-track-label">Paso ${n} de 3 · ${labels[n-1]}</span>
+    <div style="display:flex; gap:6px; margin-left:auto;">
+      ${[1,2,3].map(i=>`<span class="substep-dot ${i===n?'active':i<n?'done':''}"></span>`).join('')}
+    </div>
+  `;
+}
+renderProfileSubstepTrack();
+
 const SUPPLIER_OPTS = [
   { v:'yes', t:'Sí, ya sé quién me lo vende', d:'Ya tienes un contacto, fábrica o tienda que te puede vender el producto.' },
   { v:'no', t:'Todavía no — solo sé qué quiero traer', d:'Tienes la idea del producto, pero no un proveedor confirmado. Te ayudamos con esto.' }
@@ -1201,14 +1246,36 @@ function decideCamino(){
   if(status === 'sinRutDispuesto') return 'ambos';
   return 'A'; // conRutImportador o empresaImporta
 }
+// Resumen editable de lo que ya respondió, con enlaces directos de vuelta
+// a cada sub-paso — evita que "corregir una respuesta" signifique reiniciar
+// todo el perfil desde cero.
+function renderAnswerSummary(){
+  const cat = $('p_cat').value;
+  const supplierOpt = SUPPLIER_OPTS.find(o=>o.v===state.hasSupplier);
+  const statusOpt = STATUS_OPTS.find(o=>o.v===state.status);
+  const freqText = $('p_freq').selectedOptions[0].text;
+  const valueText = $('p_value').selectedOptions[0].text;
+  return `
+    <div class="answer-summary">
+      <div class="answer-summary-title">Tus respuestas</div>
+      <div class="answer-chip-row">
+        <span class="answer-chip">${cat}<button type="button" class="answer-edit" onclick="goProfileSubstep(1)">Editar</button></span>
+        <span class="answer-chip">${supplierOpt ? supplierOpt.t : ''}<button type="button" class="answer-edit" onclick="goProfileSubstep(2)">Editar</button></span>
+        <span class="answer-chip">${statusOpt ? statusOpt.t : ''}<button type="button" class="answer-edit" onclick="goProfileSubstep(2)">Editar</button></span>
+        <span class="answer-chip">${freqText} · ${valueText}<button type="button" class="answer-edit" onclick="goProfileSubstep(3)">Editar</button></span>
+      </div>
+    </div>
+  `;
+}
 function renderProfileResult(){
   const status = state.status, value = $('p_value').value, cat = $('p_cat').value;
   const recommendation = decideCamino();
   const box = $('profileResult');
   box.style.display = 'block';
+  const summaryHtml = renderAnswerSummary();
 
   if(recommendation === 'ambos'){
-    box.innerHTML = `
+    box.innerHTML = summaryHtml + `
       <div class="card" style="border-color:var(--ink);">
         <span class="pill pill-warn">Tu caso admite dos caminos</span>
         <div class="section-title" style="margin-top:8px;">Puedes elegir cómo traer ${cat.toLowerCase()}</div>
@@ -1236,14 +1303,18 @@ function renderProfileResult(){
     } else if(recommendation === 'A' && status === 'empresaImporta' && (value==='v2' || value==='v3')){
       extraNote = '<div class="hint" style="margin-top:10px;">Como tu volumen todavía no llega a un contenedor completo, te conviene comparar agencias por su capacidad de consolidar carga (LCL) con otros importadores de tu misma ruta, no solo por precio.</div>';
     }
-    box.innerHTML = `
+    const nextStepText = recommendation === 'B'
+      ? 'Próximo paso: revisar el catálogo de trading companies disponibles — toma menos de 2 minutos.'
+      : 'Próximo paso: revisar representantes verificados para tu categoría — toma menos de 2 minutos.';
+    box.innerHTML = summaryHtml + `
       <div class="card" style="border-color:var(--ink); background:var(--lime-tint);">
         <span class="pill pill-recommend">Recomendado</span>
         <div class="section-title" style="margin-top:8px;">${info.title}</div>
         <p style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin:0 0 6px;">Para importar <b>${cat.toLowerCase()}</b>. ${info.desc}</p>
         ${recommendation==='A' ? `<p class="hint" style="margin-top:0; font-size:11px;">${REGULATORY_THRESHOLD_NOTE}</p>` : ''}
         ${extraNote}
-        <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="continueFromProfile('${recommendation}')">Continuar →</button>
+        <p class="hint" style="margin-top:10px; font-weight:600; color:var(--ink);">${nextStepText}</p>
+        <button class="btn btn-primary btn-block" style="margin-top:8px;" onclick="continueFromProfile('${recommendation}')">Continuar →</button>
       </div>
     `;
   }
