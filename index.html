@@ -193,13 +193,14 @@
 <div class="app-header">
   <div class="app-header-inner">
     <div class="brand-row">
-      <div class="brand" style="cursor:pointer;" onclick="backToLanding()">
+      <button type="button" class="wizard-home-btn" onclick="backToLanding()" aria-label="Volver al inicio">
+        <span aria-hidden="true">←</span>
         <div class="brand-mark">CI</div>
         <div>
           <div class="brand-name">Conecta Importa</div>
-          <div class="brand-sub">Guía paso a paso para importar sin perderte en el camino</div>
+          <div class="brand-sub">Toca aquí para volver al inicio</div>
         </div>
-      </div>
+      </button>
       <div style="display:flex; align-items:center; gap:8px;">
         <button onclick="toggleNotifPanel()" aria-label="Ver notificaciones" style="position:relative; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:10px; width:32px; height:32px; cursor:pointer; font-size:14px;">
           📧

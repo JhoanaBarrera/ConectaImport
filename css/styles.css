@@ -46,6 +46,15 @@
   .brand-mark{width:30px;height:30px;border-radius:9px; background:var(--lime); color:var(--ink); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; font-family:'Space Grotesk',sans-serif;}
   .brand-name{font-weight:700; font-size:16px; color:#fff; font-family:'Space Grotesk',sans-serif; white-space:nowrap;}
   .brand-sub{font-size:11.5px; color:#8B90A0;}
+  /* Antes el logo del header del wizard era clicable para volver al inicio,
+     pero solo con cursor:pointer — invisible en móvil (no hay hover en
+     pantalla táctil). Ahora es un <button> real con una flecha "←" siempre
+     visible y el texto de abajo lo dice explícitamente. */
+  .wizard-home-btn{display:flex; align-items:center; gap:10px; background:none; border:none; padding:4px; margin:-4px; border-radius:10px; cursor:pointer; text-align:left; font-family:inherit; transition:background .12s ease;}
+  .wizard-home-btn:hover{background:rgba(255,255,255,.06);}
+  .wizard-home-btn:active{background:rgba(255,255,255,.12);}
+  .wizard-home-btn > span{font-size:16px; color:#8B90A0; flex-shrink:0;}
+  .wizard-home-btn:hover > span{color:#fff;}
   .account-pill{display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; padding:5px 10px; border-radius:20px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); color:#B9BEC9; white-space:nowrap;}
   .account-pill.logged{background:var(--status-ok-tint); border-color:var(--status-ok); color:var(--status-ok);}
   .account-pill .dot{width:6px;height:6px;border-radius:50%; background:#6B7280;}
