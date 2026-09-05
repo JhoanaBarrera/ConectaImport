@@ -90,7 +90,7 @@ function openClientPortalGate(mode){
         ${isSignup ? `
         <label style="display:flex; align-items:flex-start; gap:8px; margin-top:12px; font-size:12px; color:#D4D6DC; cursor:pointer;">
           <input type="checkbox" id="cl_gate_privacy" style="width:auto; margin-top:2px;">
-          Acepto la <span style="text-decoration:underline; font-weight:600; color:var(--lime);" onclick="event.preventDefault(); openPrivacyPanel();">política de tratamiento de datos personales</span>
+          Acepto los <span style="text-decoration:underline; font-weight:600; color:var(--lime);" onclick="event.preventDefault(); openTermsPanel();">términos y condiciones</span> y la <span style="text-decoration:underline; font-weight:600; color:var(--lime);" onclick="event.preventDefault(); openPrivacyPanel();">política de tratamiento de datos personales</span>
         </label>` : ''}
         <div id="cl_gate_error" class="hint" style="color:#F0B4AE; display:none;"></div>
         <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="clientGateSubmit('${mode}', this)">${isSignup ? 'Crear cuenta y entrar' : 'Iniciar sesión'}</button>
@@ -236,6 +236,29 @@ function openPrivacyPanel(){
     <p>Con proveedores tecnológicos que procesan datos en nuestro nombre bajo contrato: Supabase (base de datos y autenticación) y Resend (envío de correos). No vendemos ni compartimos tus datos con terceros para fines comerciales ajenos a la plataforma.</p>
     <h4>Tus derechos como titular</h4>
     <p>Puedes conocer, actualizar, rectificar y solicitar la supresión de tus datos, así como revocar la autorización dada, escribiendo a través del <span style="text-decoration:underline; font-weight:600; color:var(--trust); cursor:pointer;" onclick="event.stopPropagation(); closeInfoModal(); openSupport();">canal de soporte</span> de la plataforma.</p>
+    <button class="btn btn-outline btn-block" style="margin-top:6px;" onclick="closeInfoModal()">Cerrar</button>
+  `, true);
+}
+function openTermsPanel(){
+  openInfoModal(`
+    <h3>Términos y condiciones</h3>
+    <p>Esta es una versión inicial simple, redactada para el prototipo — antes de operar con usuarios reales a mayor escala, este texto debe pasar por revisión legal formal.</p>
+    <h4>Qué es Conecta Importa</h4>
+    <p>Conecta Importa es una plataforma que conecta a personas y empresas que quieren importar con representantes verificados (agencias de aduanas, agentes de sourcing, agentes de carga y trading companies). No somos agencia de aduanas, ni transportista, ni representante comercial de nadie — facilitamos el contacto, el seguimiento del pedido y la trazabilidad, pero el servicio de importación en sí lo presta el representante que elijas.</p>
+    <h4>La "verificación" es un check de plataforma, no una certificación legal</h4>
+    <p>Antes de habilitar a un representante revisamos su identidad, licencias declaradas y antecedentes en listas restrictivas. Esto reduce el riesgo, pero no es una certificación con peso legal ni un aval de que el representante cumplirá cada compromiso — la relación comercial y sus términos específicos (precios, tiempos, garantías) los pactas directamente con tu representante en cada cotización confirmada.</p>
+    <h4>Pagos</h4>
+    <p>El pago de tu pedido se transfiere directamente a la cuenta bancaria verificada de tu representante — Conecta Importa nunca recibe ni retiene ese dinero. Aparte, la plataforma cobra un fee de activación por conectar tu pedido, siempre mostrado por separado antes de que aceptes.</p>
+    <h4>Tu cuenta</h4>
+    <ul>
+      <li>La información que registras (identidad, NIT/cédula, licencias) debe ser veraz.</li>
+      <li>Eres responsable de mantener segura tu contraseña.</li>
+      <li>Podemos suspender cuentas que usen la plataforma para actividades ilegales, contrabando, o productos restringidos por norma colombiana.</li>
+    </ul>
+    <h4>Cambios al servicio</h4>
+    <p>Los montos de ejemplo (fee de activación, umbrales de norma citados en el wizard) pueden ajustarse con el tiempo — siempre los vas a ver con transparencia antes de aceptar una cotización.</p>
+    <h4>Ley aplicable</h4>
+    <p>Estos términos se rigen por las leyes de Colombia. Para preguntas, escribe a través del <span style="text-decoration:underline; font-weight:600; color:var(--trust); cursor:pointer;" onclick="event.stopPropagation(); closeInfoModal(); openSupport();">canal de soporte</span> de la plataforma.</p>
     <button class="btn btn-outline btn-block" style="margin-top:6px;" onclick="closeInfoModal()">Cerrar</button>
   `, true);
 }
