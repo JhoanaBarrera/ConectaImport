@@ -3,18 +3,22 @@
     /* --ink hacía doble función (fondo oscuro Y texto oscuro) — por eso el
        negro puro se sentía "startup arriesgada". Ahora es azul marino,
        que cumple ambos roles con más calidez y menos agresividad visual. */
-    --ink:#0F1729; --ink-2:#1B2438; --ink-soft:#6B7280; --ink-faint:#9CA3AF;
+    /* Tonos ajustados a los de la auditoría UX/UI (aprobados por el usuario
+       tras comparar lado a lado): navy y lima un poco más saturados, cian
+       más claro. Título/CTA del hero se decidieron por separado — ver
+       index.html. */
+    --ink:#0B1326; --ink-2:#1B2438; --ink-soft:#475569; --ink-faint:#9CA3AF;
     --paper:#F7F7F3; --surface:#FFFFFF; --line:#E7E8E2; --line-strong:#D6D8CF;
     /* Lima: RESERVADO solo para el botón de acción principal y el badge
        "Recomendado" — no usar como color decorativo suelto. */
-    --lime:#C4F132; --lime-deep:#7FA820; --lime-tint:#F1FFDA;
+    --lime:#C7F000; --lime-deep:#7FA820; --lime-tint:#F1FFDA;
     /* Azul de confianza: links secundarios, íconos informativos. */
-    --trust:#2D9CDB; --trust-tint:#EAF5FC;
+    --trust:#35B9E8; --trust-tint:#EAF5FC;
     --purple:#7C6CF6; --purple-tint:#EFECFF;
     /* Sistema de color por estado — usar solo para estado real de un
        proceso (verificación, tracking, pendientes), nunca decorativo. */
     --status-ok:#16A34A; --status-ok-tint:#DCFCE7;
-    --status-progress:#2D9CDB; --status-progress-tint:#DBEAFE;
+    --status-progress:#35B9E8; --status-progress-tint:#DBEAFE;
     --status-warn:#D97706; --status-warn-tint:#FDF3E3;
     --warn:#D97706; --warn-soft:#FDF3E3;
     --danger:#D0342C; --danger-soft:#FBEAE9;
