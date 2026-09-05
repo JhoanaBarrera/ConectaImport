@@ -87,6 +87,11 @@ function openClientPortalGate(mode){
           <div><label class="field-label">Correo electrónico</label><input type="email" id="cl_gate_email" autocomplete="email" placeholder="tucorreo@ejemplo.com"></div>
           <div><label class="field-label">Contraseña</label><input type="password" id="cl_gate_pass" autocomplete="${isSignup?'new-password':'current-password'}" placeholder="Mínimo 8 caracteres"></div>
         </div>
+        ${isSignup ? `
+        <label style="display:flex; align-items:flex-start; gap:8px; margin-top:12px; font-size:12px; color:#D4D6DC; cursor:pointer;">
+          <input type="checkbox" id="cl_gate_privacy" style="width:auto; margin-top:2px;">
+          Acepto la <span style="text-decoration:underline; font-weight:600; color:var(--lime);" onclick="event.preventDefault(); openPrivacyPanel();">política de tratamiento de datos personales</span>
+        </label>` : ''}
         <div id="cl_gate_error" class="hint" style="color:#F0B4AE; display:none;"></div>
         <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="clientGateSubmit('${mode}', this)">${isSignup ? 'Crear cuenta y entrar' : 'Iniciar sesión'}</button>
         <div class="hint" style="text-align:center; margin-top:10px; color:#B9BEC9;">${isSignup ? '¿Ya tienes cuenta?' : '¿Aún no tienes cuenta?'} <span style="color:var(--lime); font-weight:600; text-decoration:underline; cursor:pointer;" onclick="openClientPortalGate('${isSignup?'login':'signup'}')">${isSignup ? 'Inicia sesión' : 'Regístrate'}</span></div>
@@ -103,6 +108,7 @@ async function clientGateSubmit(mode, btn){
   const errBox = $('cl_gate_error');
   if(errBox) errBox.style.display = 'none';
   if(!email || !pass){ alert('Ingresa correo y contraseña.'); return; }
+  if(mode === 'signup' && !$('cl_gate_privacy').checked){ alert('Debes aceptar la política de tratamiento de datos personales para crear tu cuenta.'); return; }
   if(!requireSupabase()) return;
   const originalLabel = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = 'Un momento…'; }
@@ -110,7 +116,7 @@ async function clientGateSubmit(mode, btn){
     let session;
     if(mode === 'signup'){
       const name = $('cl_gate_name') ? $('cl_gate_name').value.trim() : '';
-      session = await upgradeOrSignUp(email, pass, { role:'client', full_name:name });
+      session = await upgradeOrSignUp(email, pass, { role:'client', full_name:name, privacy_accepted_at: new Date().toISOString() });
       if(!session){
         $('clientLoginGate').innerHTML = `<div class="wrap"><div class="banner" style="margin-top:6px;">✓ Cuenta creada. Te enviamos un correo de confirmación a <b>${email}</b> — confírmalo y vuelve para iniciar sesión.</div></div>`;
         return;
@@ -173,14 +179,14 @@ function scrollToLandingSection(id){
   const el = $(id);
   if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
 }
-function openInfoModal(html){
+function openInfoModal(html, wide){
   let backdrop = document.getElementById('infoModalBackdrop');
   if(backdrop) backdrop.remove();
   backdrop = document.createElement('div');
   backdrop.id = 'infoModalBackdrop';
   backdrop.className = 'info-modal-backdrop';
   backdrop.onclick = (e)=>{ if(e.target === backdrop) backdrop.remove(); };
-  backdrop.innerHTML = `<div class="info-modal">${html}</div>`;
+  backdrop.innerHTML = `<div class="info-modal${wide?' wide':''}">${html}</div>`;
   document.body.appendChild(backdrop);
 }
 function closeInfoModal(){
@@ -210,6 +216,29 @@ function openPricingPanel(){
     <button class="btn btn-outline btn-block" onclick="closeInfoModal()">Cerrar</button>
   `);
 }
+function openPrivacyPanel(){
+  openInfoModal(`
+    <h3>Política de tratamiento de datos personales</h3>
+    <p>Conecta Importa recolecta y trata datos personales conforme a la <b>Ley 1581 de 2012</b> y sus decretos reglamentarios (régimen general de protección de datos personales en Colombia). Esta es una versión inicial simple del aviso — antes de operar con usuarios reales a mayor escala, este texto debe pasar por revisión legal formal.</p>
+    <h4>¿Qué datos recolectamos?</h4>
+    <ul>
+      <li>Datos de contacto: nombre, correo electrónico, WhatsApp.</li>
+      <li>Datos de identificación y tributarios de representantes: NIT o cédula, licencia DIAN, figura tributaria.</li>
+      <li>Datos de tus pedidos de importación: producto, cantidades, valores declarados, documentos que adjuntes.</li>
+    </ul>
+    <h4>¿Para qué los usamos?</h4>
+    <ul>
+      <li>Conectarte con representantes verificados y darle seguimiento a tu pedido.</li>
+      <li>Enviarte notificaciones sobre el estado de tus solicitudes (correo electrónico).</li>
+      <li>Verificar la identidad de representantes antes de habilitarlos en el marketplace.</li>
+    </ul>
+    <h4>¿Con quién se comparten?</h4>
+    <p>Con proveedores tecnológicos que procesan datos en nuestro nombre bajo contrato: Supabase (base de datos y autenticación) y Resend (envío de correos). No vendemos ni compartimos tus datos con terceros para fines comerciales ajenos a la plataforma.</p>
+    <h4>Tus derechos como titular</h4>
+    <p>Puedes conocer, actualizar, rectificar y solicitar la supresión de tus datos, así como revocar la autorización dada, escribiendo a través del <span style="text-decoration:underline; font-weight:600; color:var(--trust); cursor:pointer;" onclick="event.stopPropagation(); closeInfoModal(); openSupport();">canal de soporte</span> de la plataforma.</p>
+    <button class="btn btn-outline btn-block" style="margin-top:6px;" onclick="closeInfoModal()">Cerrar</button>
+  `, true);
+}
 function renderRepLoginGate(mode){
   mode = mode || 'login';
   const isSignup = mode === 'signup';
@@ -234,10 +263,21 @@ function renderRepLoginGate(mode){
         </div>
         <div><label class="field-label">NIT o cédula</label><input type="text" id="rep_auth_nit" placeholder="900.123.456-7"></div>
         <div><label class="field-label">N° de licencia DIAN (si aplica)</label><input type="text" id="rep_auth_license" placeholder="Ej. RES-2024-00218"></div>
+        <div><label class="field-label">Figura tributaria</label>
+          <select id="rep_auth_legal_person">
+            <option value="juridica">Persona jurídica (empresa)</option>
+            <option value="natural">Persona natural</option>
+          </select>
+        </div>
         ` : ''}
         <div><label class="field-label">Correo electrónico</label><input type="email" id="rep_auth_email" autocomplete="email" placeholder="tucorreo@agencia.com"></div>
         <div><label class="field-label">Contraseña</label><input type="password" id="rep_auth_pass" autocomplete="${isSignup?'new-password':'current-password'}" placeholder="Mínimo 8 caracteres"></div>
       </div>
+      ${isSignup ? `
+      <label style="display:flex; align-items:flex-start; gap:8px; margin-top:12px; font-size:12px; color:#D4D6DC; cursor:pointer;">
+        <input type="checkbox" id="rep_auth_privacy" style="width:auto; margin-top:2px;">
+        Acepto la <span style="text-decoration:underline; font-weight:600; color:var(--lime);" onclick="event.preventDefault(); openPrivacyPanel();">política de tratamiento de datos personales</span>
+      </label>` : ''}
       <div id="rep_auth_error" class="hint" style="color:#F0B4AE; display:none;"></div>
       <button class="btn btn-primary" style="margin-top:12px;" onclick="repLogin('${mode}', this)">${isSignup ? 'Enviar a verificación' : 'Iniciar sesión'}</button>
       <div class="hint" style="color:#B9BEC9;">${isSignup ? '¿Ya tienes cuenta?' : '¿Eres nuevo en la plataforma?'} <span style="color:var(--lime); font-weight:600; text-decoration:underline; cursor:pointer;" onclick="renderRepLoginGate('${isSignup?'login':'signup'}')">${isSignup ? 'Inicia sesión' : 'Regístrate'}</span></div>
@@ -284,6 +324,8 @@ async function repLogin(mode, btn){
   const errBox = $('rep_auth_error');
   if(errBox) errBox.style.display = 'none';
   if(!email || !pass){ alert('Ingresa correo y contraseña.'); return; }
+  if(mode === 'signup' && !$('rep_auth_name').value.trim()){ alert('Ingresa el nombre de tu agencia o negocio.'); return; }
+  if(mode === 'signup' && !$('rep_auth_privacy').checked){ alert('Debes aceptar la política de tratamiento de datos personales para registrarte.'); return; }
   if(!requireSupabase()) return;
   const originalLabel = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = 'Un momento…'; }
@@ -294,8 +336,8 @@ async function repLogin(mode, btn){
       const repType = $('rep_auth_type').value;
       const nit = $('rep_auth_nit').value.trim();
       const license = $('rep_auth_license').value.trim();
-      if(!businessName){ alert('Ingresa el nombre de tu agencia o negocio.'); return; }
-      session = await upgradeOrSignUp(email, pass, { role:'representative', business_name:businessName, rep_type:repType, nit_or_cedula:nit, dian_license:license });
+      const legalPersonType = $('rep_auth_legal_person').value;
+      session = await upgradeOrSignUp(email, pass, { role:'representative', business_name:businessName, rep_type:repType, nit_or_cedula:nit, dian_license:license, legal_person_type:legalPersonType, privacy_accepted_at: new Date().toISOString() });
       if(!session){
         $('repLoginBox').innerHTML = `<div class="banner" style="margin-top:22px;">✓ Cuenta creada. Te enviamos un correo de confirmación a <b>${email}</b> — ábrelo y confirma tu cuenta, luego vuelve aquí e inicia sesión.</div>`;
         return;
@@ -966,6 +1008,11 @@ const CAMINO_INFO = {
     step2: { title:'Elige tu trading company', sub:'Estas empresas ya importan y nacionalizan por su cuenta — te venden el producto nacionalizado, sin que tengas que tramitar nada.' }
   }
 };
+// Los umbrales de FOB (agencia de aduanas obligatoria, límites de courier)
+// están confirmados con norma vigente, pero la DIAN o el Gobierno pueden
+// cambiarlos — este texto se repite donde se mencionan para no prometer
+// un número que después deje de ser cierto.
+const REGULATORY_THRESHOLD_NOTE = 'Estos umbrales están vigentes hoy, pero pueden cambiar por decisión de la DIAN o el Gobierno.';
 function decideCamino(){
   const status = state.status;
   if(status === 'sinRutNoQuiere') return 'B';
@@ -989,6 +1036,7 @@ function renderProfileResult(){
         <div class="card">
           <div class="section-title">${CAMINO_INFO.A.title}</div>
           <p style="font-size:13px; color:var(--ink-soft); line-height:1.6;">${CAMINO_INFO.A.desc}</p>
+          <p class="hint" style="margin-top:0; font-size:11px;">${REGULATORY_THRESHOLD_NOTE}</p>
           <button class="btn btn-outline btn-block" onclick="continueFromProfile('A')">Elegir Camino A →</button>
         </div>
         <div class="card">
@@ -1011,6 +1059,7 @@ function renderProfileResult(){
         <span class="pill pill-recommend">Recomendado</span>
         <div class="section-title" style="margin-top:8px;">${info.title}</div>
         <p style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin:0 0 6px;">Para importar <b>${cat.toLowerCase()}</b>. ${info.desc}</p>
+        ${recommendation==='A' ? `<p class="hint" style="margin-top:0; font-size:11px;">${REGULATORY_THRESHOLD_NOTE}</p>` : ''}
         ${extraNote}
         <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="continueFromProfile('${recommendation}')">Continuar →</button>
       </div>
@@ -1483,20 +1532,36 @@ function selectVerif(v){
   document.querySelectorAll('#quoteFormBlock .card:nth-of-type(2) .choice').forEach(c=>c.classList.remove('active'));
   document.querySelector(`#quoteFormBlock .card:nth-of-type(2) .choice[data-v="${v}"]`).classList.add('active');
 }
+// Límites reales del régimen de courier/mensajería (los 4 se exigen juntos —
+// basta con superar uno solo para que el pedido ya no califique). Las medidas
+// (≤1.50 m) no se piden como dato en el formulario, así que solo se advierten
+// en el texto, no se validan en código.
+const COURIER_LIMITS = { fob:2000, weightKg:50, maxUnitsSameRef:6 };
+function courierIsEligible(fob, weight, qty){
+  return fob <= COURIER_LIMITS.fob && weight <= COURIER_LIMITS.weightKg && (qty<=0 || qty <= COURIER_LIMITS.maxUnitsSameRef);
+}
 function renderModeRecommend(){
   const weight = parseFloat($('q_weight').value)||0;
   const cbm = parseFloat($('q_cbm').value)||0;
+  const fob = parseFloat($('q_fob').value)||0;
+  const qty = parseInt($('q_qty').value)||0;
   const rates = { LCL: Math.max(cbm,1)*75, FCL: 2600, AIR: Math.max(weight,45)*9.4, COURIER: weight*12 };
-  const cheapest = Object.entries(rates).reduce((a,b)=> b[1]<a[1]? b:a)[0];
+  const courierOk = courierIsEligible(fob, weight, qty);
+  const eligibleEntries = Object.entries(rates).filter(([k])=> k!=='COURIER' || courierOk);
+  const cheapest = eligibleEntries.reduce((a,b)=> b[1]<a[1]? b:a)[0];
   const labels = { LCL:'Marítimo LCL', FCL:'Marítimo FCL', AIR:'Aéreo (carga)', COURIER:'Courier / mensajería' };
   state.mode = cheapest;
-  $('modeRecommend').innerHTML = Object.entries(rates).map(([k,v])=>`
-    <div class="choice ${k===state.mode?'active':''}" data-mode="${k}" onclick="pickMode('${k}')">
+  $('modeRecommend').innerHTML = Object.entries(rates).map(([k,v])=>{
+    const disabled = k==='COURIER' && !courierOk;
+    return `
+    <div class="choice ${!disabled && k===state.mode?'active':''}" data-mode="${k}" style="${disabled?'opacity:.5; cursor:not-allowed;':''}" onclick="${disabled?'':`pickMode('${k}')`}">
       <div class="radio"></div>
-      <div class="choice-body"><h4>${labels[k]} ${k===cheapest?'· recomendado':''}</h4><p>Costo estimado de flete</p><span class="choice-price">≈ $${v.toFixed(0)} USD</span></div>
+      <div class="choice-body"><h4>${labels[k]} ${!disabled && k===cheapest?'· recomendado':''}${disabled?' · no aplica a este pedido':''}</h4><p>${disabled ? 'Supera los límites del régimen de courier para este pedido' : 'Costo estimado de flete'}</p><span class="choice-price">${disabled?'—':`≈ $${v.toFixed(0)} USD`}</span></div>
     </div>
-  `).join('');
+  `;
+  }).join('');
   $('modeNote').textContent = `Sugerencia según ${weight} kg y ${cbm} m³ declarados. Puedes elegir otra vía si el tiempo importa más que el costo.`;
+  $('courierLimitsNote').innerHTML = `<b>Courier / mensajería</b> solo aplica si se cumplen los 4 límites a la vez: FOB ≤ USD ${COURIER_LIMITS.fob.toLocaleString('en-US')}, peso ≤ ${COURIER_LIMITS.weightKg} kg, medidas ≤ 1.50 m, y máximo ${COURIER_LIMITS.maxUnitsSameRef} unidades de la misma referencia — si se supera cualquiera de los 4, ya no aplica. ${REGULATORY_THRESHOLD_NOTE}`;
   renderGroupSuggestion(cbm);
 }
 

@@ -39,7 +39,8 @@ async function ensureProfile(session){
       role: meta.role || 'client',
       full_name: meta.full_name || null,
       email: session.user.email,
-      whatsapp: meta.whatsapp || null
+      whatsapp: meta.whatsapp || null,
+      privacy_accepted_at: meta.privacy_accepted_at || null
     })
     .select().single();
   if(error) throw error;
@@ -65,6 +66,7 @@ async function ensureRepresentative(session, profile){
       rep_type: repType,
       nit_or_cedula: meta.nit_or_cedula || null,
       dian_license: meta.dian_license || null,
+      legal_person_type: meta.legal_person_type || null,
       verification_status: verificationStatus
     })
     .select().single();

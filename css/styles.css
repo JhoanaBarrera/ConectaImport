@@ -307,7 +307,10 @@
 
   /* ---------- PANEL DE INFO (Quiénes somos / Precios) ---------- */
   .info-modal-backdrop{position:fixed; inset:0; background:rgba(15,23,41,.55); z-index:50; display:flex; align-items:center; justify-content:center; padding:16px;}
-  .info-modal{background:var(--surface); border-radius:var(--radius); max-width:420px; width:100%; padding:24px; box-shadow:0 24px 48px rgba(0,0,0,.3);}
+  .info-modal{background:var(--surface); border-radius:var(--radius); max-width:420px; width:100%; padding:24px; box-shadow:0 24px 48px rgba(0,0,0,.3); max-height:85vh; overflow-y:auto;}
+  .info-modal.wide{max-width:560px;}
+  .info-modal h4{font-size:13px; margin:16px 0 6px; font-family:'Space Grotesk',sans-serif;}
+  .info-modal ul{margin:0 0 10px; padding-left:18px; font-size:13px; color:var(--ink-soft); line-height:1.6;}
   .info-modal h3{font-size:16px; font-family:'Space Grotesk',sans-serif; margin:0 0 12px;}
   .info-modal p{font-size:13px; color:var(--ink-soft); line-height:1.6; margin:0 0 10px;}
   .info-modal .line-item{font-size:12.5px;}

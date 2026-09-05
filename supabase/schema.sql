@@ -260,3 +260,18 @@ create policy "products: editar el propio" on products
 -- Cada solicitud/pedido de Camino B queda ligado al producto de catálogo
 -- que lo originó (en Camino A esto queda en null — ahí no hay catálogo).
 alter table quote_requests add column product_id uuid references products(id);
+
+-- ============================================================
+-- MIGRACIÓN: validación legal — tratamiento de datos + figura tributaria
+-- ------------------------------------------------------------
+-- Cómo aplicar: pégala y corre en el SQL Editor de Supabase, igual que
+-- las migraciones anteriores de este archivo.
+-- ============================================================
+-- Queda registro de cuándo aceptó cada quien la política de tratamiento
+-- de datos personales (Ley 1581 de 2012) — evidencia mínima de consentimiento.
+alter table profiles add column privacy_accepted_at timestamptz;
+
+-- Prepara el dato de qué figura tributaria tiene el representante
+-- (persona natural o jurídica) para cuando se defina el régimen aplicable
+-- a cada tipo — no cambia ningún flujo todavía, solo lo deja capturado.
+alter table representatives add column legal_person_type text check (legal_person_type in ('natural','juridica'));
