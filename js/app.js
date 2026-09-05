@@ -1885,6 +1885,78 @@ function toggleNoInfo(){
   const off = $('noInfoYet').checked;
   ['q_weight','q_cbm','q_boxes'].forEach(id=>{ $(id).disabled = off; $(id).style.opacity = off? .4:1; });
 }
+
+// ---------------------------------------------------------------------
+// VARIAS REFERENCIAS EN UN MISMO PEDIDO — q_prod/q_qty/q_fob siguen
+// siendo el total agregado que usa toda la calculadora (flete, aduana,
+// etc. no cambian), pero si hay 2+ referencias con precios distintos,
+// un "costo por unidad" promediado es engañoso — por eso cada una recibe
+// su propio costo por unidad, repartiendo los costos compartidos
+// (flete + aduana + comisión) proporcional al valor FOB de cada una.
+// ---------------------------------------------------------------------
+if(!state.refLines) state.refLines = [];
+
+function renderRefLines(){
+  const box = $('refLinesBox');
+  if(!box) return;
+  if(state.refLines.length === 0){ box.innerHTML = ''; return; }
+  box.innerHTML = state.refLines.map((line, i) => `
+    <div style="display:flex; gap:8px; align-items:flex-end; margin-bottom:8px; flex-wrap:wrap;">
+      <div style="flex:2; min-width:140px;"><label class="field-label">Referencia</label><input type="text" value="${line.name}" oninput="updateRefLine(${i},'name',this.value)" placeholder="Ej. Filtros de aceite"></div>
+      <div style="flex:1; min-width:80px;"><label class="field-label">Unidades</label><input type="number" value="${line.qty}" oninput="updateRefLine(${i},'qty',this.value)"></div>
+      <div style="flex:1; min-width:100px;"><label class="field-label">FOB por unidad (USD)</label><input type="number" value="${line.unitFob}" step="0.01" oninput="updateRefLine(${i},'unitFob',this.value)"></div>
+      <button type="button" class="btn btn-outline btn-sm" onclick="removeRefLine(${i})" aria-label="Quitar referencia">✕</button>
+    </div>
+  `).join('');
+}
+function addRefLine(){
+  if(state.refLines.length === 0){
+    // La primera línea hereda lo que ya había en los campos únicos, para
+    // no perder lo que ya había escrito.
+    state.refLines.push({
+      name: $('q_prod').value || '',
+      qty: parseFloat($('q_qty').value) || 0,
+      unitFob: (parseFloat($('q_qty').value) > 0) ? (parseFloat($('q_fob').value)||0) / parseFloat($('q_qty').value) : 0
+    });
+  } else {
+    state.refLines.push({ name:'', qty:0, unitFob:0 });
+  }
+  renderRefLines();
+  recalcFromRefLines();
+}
+function removeRefLine(i){
+  state.refLines.splice(i,1);
+  renderRefLines();
+  recalcFromRefLines();
+}
+function updateRefLine(i, field, value){
+  state.refLines[i][field] = (field==='name') ? value : (parseFloat(value)||0);
+  recalcFromRefLines();
+}
+function recalcFromRefLines(){
+  const hasLines = state.refLines.length > 0;
+  const totalQty = state.refLines.reduce((s,l)=>s+(l.qty||0), 0);
+  const totalFob = state.refLines.reduce((s,l)=>s+(l.qty||0)*(l.unitFob||0), 0);
+  if(hasLines){
+    $('q_qty').value = totalQty;
+    $('q_fob').value = totalFob.toFixed(2);
+    $('q_prod').value = state.refLines.length === 1 ? (state.refLines[0].name || 'Sin nombre') : `${state.refLines.length} referencias: ${state.refLines.map(l=>l.name||'sin nombre').join(', ')}`;
+  }
+  ['q_qty','q_fob','q_prod'].forEach(id=>{ $(id).readOnly = hasLines; $(id).style.background = hasLines ? 'var(--paper)' : ''; });
+}
+// Reparte flete + aduana + comisión + fee proporcional al valor FOB de
+// cada referencia — así una referencia barata no carga con el mismo
+// costo logístico por unidad que una cara.
+function refLinesBreakdown(q){
+  if(!state.refLines || state.refLines.length < 2 || !q.fob) return null;
+  const sharedCost = q.total - q.fob;
+  return state.refLines.filter(l=>l.qty>0).map(l => {
+    const lineFob = l.qty*l.unitFob;
+    const share = q.fob>0 ? lineFob/q.fob : 0;
+    const landedTotal = lineFob + sharedCost*share;
+    return { name: l.name||'Sin nombre', qty: l.qty, unitFob: l.unitFob, landedUnit: landedTotal/l.qty };
+  });
+}
 function fileAttached(input){
   if(input.files[0]){ $('fileNote').textContent = `Adjunto: ${input.files[0].name}`; state.supplierQuoteAttached = true; }
 }
@@ -2187,14 +2259,26 @@ function quoteLinesHtml(q, qty){
   `;
 }
 
+function refBreakdownHtml(q, uid){
+  const lines = refLinesBreakdown(q);
+  if(!lines) return '';
+  return `
+    <div class="card">
+      <div class="section-title">Costo por unidad, por referencia</div>
+      <p class="hint" style="margin-top:0;">Con varias referencias a precios distintos, un promedio general no sirve para decidir márgenes — cada una reparte flete, aduana y comisión según su propio valor FOB.</p>
+      ${lines.map(l => `<div class="line-item"><span class="lbl">${l.name} (${l.qty} u · FOB ${fmtUsd(l.unitFob)}/u)</span><span class="val">${fmtUsd(l.landedUnit)}/u puesta en bodega</span></div>`).join('')}
+    </div>
+  `;
+}
 function unitLinesHtml(q, qty, uid){
   if(!qty || qty<=0) return '';
   const unitFob = q.fob/qty;
   const unitOther = (q.total-q.fob)/qty;
   const unitTotal = q.total/qty;
   return `
+    ${refBreakdownHtml(q, uid)}
     <div class="card">
-      <div class="section-title">Costo por unidad</div>
+      <div class="section-title">Costo por unidad${refLinesBreakdown(q) ? ' (promedio general)' : ''}</div>
       <div class="line-item"><span class="lbl">Costo inicial (FOB/u)</span><span class="val">${fmtUsd(unitFob)}</span></div>
       <div class="line-item"><span class="lbl">Envío + trámites + comisiones/u</span><span class="val">${fmtUsd(unitOther)}</span></div>
       <div class="line-item total"><span class="lbl">Total puesto en tu bodega/u</span><span class="val">${fmtUsd(unitTotal)}</span></div>
@@ -2373,7 +2457,7 @@ async function proceedToWaiting(){
         verification_level: state.verif,
         incoterm: state.incoterm,
         price_locked: state.priceLocked,
-        preliminary_quote: q,
+        preliminary_quote: state.refLines.length ? { ...q, references: state.refLines } : q,
         ai_classification: state.productImageClassification || null,
         ai_classification_disclaimer_shown_at: state.productImageClassification ? state.productImageClassification.disclaimer_shown_at : null
       };

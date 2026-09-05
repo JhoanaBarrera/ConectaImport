@@ -368,6 +368,14 @@
           <div><label class="field-label">Volumen total (m³)</label><input type="number" id="q_cbm" value="1.4" step="0.1"></div>
           <div><label class="field-label"># de cajas</label><input type="number" id="q_boxes" value="20"></div>
         </div>
+
+        <div class="form-section">
+          <div class="form-section-title">¿Son varias referencias? (opcional)</div>
+          <p class="hint" style="margin-top:0;">Si tu pedido mezcla productos distintos con precios distintos, agrégalos aquí — sumamos el total automáticamente y te damos el costo por unidad de cada uno por separado, no un promedio.</p>
+          <div id="refLinesBox"></div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="addRefLine()">+ Agregar referencia</button>
+        </div>
+
         <label class="field-label" style="margin-top:12px;">Cotización del proveedor (opcional)</label>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
           <label class="btn btn-outline btn-sm" style="margin:0;">Adjuntar archivo<input type="file" style="display:none" onchange="fileAttached(this)"></label>
