@@ -67,19 +67,15 @@ function renderNotifList(){
     </div>
   `).join('');
 }
+// Antes abría un panel propio de "¿Necesitas ayuda?" (solo WhatsApp +
+// un link de demo) — ahora abre el mismo chat de soporte con IA, que ya
+// incluye el link de WhatsApp ("Hablar con una persona") en su pie. Dos
+// burbujas de chat flotantes casi en el mismo lugar (esta y chatFab)
+// era confuso y redundante; se unificaron en una sola.
 function openSupport(){
-  let panel = document.getElementById('supportPanel');
-  if(panel){ panel.style.display = panel.style.display==='block' ? 'none':'block'; return; }
-  panel = document.createElement('div');
-  panel.id = 'supportPanel';
-  panel.style.cssText = 'position:fixed; bottom:78px; right:16px; width:250px; background:var(--ink); color:#fff; border-radius:16px; padding:16px; z-index:40; box-shadow:0 16px 34px rgba(0,0,0,.35);';
-  panel.innerHTML = `
-    <div style="font-weight:700; font-family:'Space Grotesk',sans-serif; margin-bottom:4px;">¿Necesitas ayuda?</div>
-    <p style="font-size:12px; color:#B9BEC9; margin:0 0 12px; line-height:1.5;">Un asesor humano puede tomar tu caso en cualquier momento del proceso.</p>
-    <a href="https://wa.me/573000000000" target="_blank" style="display:flex; align-items:center; gap:8px; color:var(--ink); background:var(--lime); font-size:13px; font-weight:700; padding:9px 12px; border-radius:8px; margin-bottom:8px; text-decoration:none;">💬 Escríbenos por WhatsApp</a>
-    <a href="#" onclick="alert('Un asesor te llamará en el horario que elijas (demo).'); return false;" style="display:flex; align-items:center; gap:8px; color:#fff; background:rgba(255,255,255,.08); font-size:13px; font-weight:700; padding:9px 12px; border-radius:8px; text-decoration:none;">📞 Agendar llamada</a>
-  `;
-  document.body.appendChild(panel);
+  const panel = $('supportChatPanel');
+  if(panel && panel.hidden){ toggleSupportChat(); }
+  else if(panel){ $('supportChatInput').focus(); }
 }
 
 function enterApp(){
@@ -159,6 +155,10 @@ async function clientGateSubmit(mode, btn){
   if(!email || !pass){ alert('Ingresa correo y contraseña.'); return; }
   if(mode === 'signup' && !$('cl_gate_privacy').checked){ alert('Debes aceptar la política de tratamiento de datos personales para crear tu cuenta.'); return; }
   if(!requireSupabase()) return;
+  if(mode !== 'signup'){
+    const lockMsg = checkLoginLockout(email);
+    if(lockMsg){ if(errBox){ errBox.textContent = lockMsg; errBox.style.display = 'block'; } else alert(lockMsg); return; }
+  }
   const originalLabel = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = 'Un momento…'; }
   try{
@@ -172,7 +172,8 @@ async function clientGateSubmit(mode, btn){
       }
     } else {
       const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
-      if(error) throw error;
+      if(error){ registerLoginFailure(email); throw error; }
+      registerLoginSuccess(email);
       session = data.session;
     }
     const profile = await ensureProfile(session);
@@ -339,9 +340,33 @@ function openPrivacyPanel(){
     <h4>¿Con quién se comparten?</h4>
     <p>Con proveedores tecnológicos que procesan datos en nuestro nombre bajo contrato: Supabase (base de datos y autenticación) y Resend (envío de correos). No vendemos ni compartimos tus datos con terceros para fines comerciales ajenos a la plataforma.</p>
     <h4>Tus derechos como titular</h4>
-    <p>Puedes conocer, actualizar, rectificar y solicitar la supresión de tus datos, así como revocar la autorización dada, escribiendo a través del <span style="text-decoration:underline; font-weight:600; color:var(--trust); cursor:pointer;" onclick="event.stopPropagation(); closeInfoModal(); openSupport();">canal de soporte</span> de la plataforma.</p>
+    <p>Puedes conocer, actualizar, rectificar y solicitar la supresión de tus datos, así como revocar la autorización dada, escribiendo a través del <span style="text-decoration:underline; font-weight:600; color:var(--trust); cursor:pointer;" onclick="event.stopPropagation(); closeInfoModal(); openSupport();">canal de soporte</span> de la plataforma, o con el botón de abajo.</p>
+    <div id="dataDeletionBox"></div>
+    <button class="btn btn-outline btn-sm btn-block" style="margin-top:6px;" onclick="event.stopPropagation(); requestDataDeletion();">Solicitar eliminación de mis datos</button>
     <button class="btn btn-outline btn-block" style="margin-top:6px;" onclick="closeInfoModal()">Cerrar</button>
   `, true);
+}
+async function requestDataDeletion(){
+  const box = $('dataDeletionBox');
+  const email = state.accountEmail || state.contactEmail || state.repEmail;
+  if(!email){
+    if(box) box.innerHTML = `<p class="hint" style="color:var(--danger);">Necesitas haber iniciado sesión o dejado un correo de contacto antes de pedir esto.</p>`;
+    return;
+  }
+  if(!supabaseClient){
+    if(box) box.innerHTML = `<p class="hint" style="color:var(--danger);">No hay conexión ahora mismo — intenta más tarde.</p>`;
+    return;
+  }
+  if(!confirm(`¿Confirmas que quieres solicitar la eliminación de todos tus datos asociados a ${email}? Te contactaremos para confirmarlo antes de borrar nada.`)) return;
+  const { error } = await supabaseClient.from('data_deletion_requests').insert({
+    account_id: state.accountId || null,
+    contact_email: email
+  });
+  if(box){
+    box.innerHTML = error
+      ? `<p class="hint" style="color:var(--danger);">No se pudo registrar tu solicitud — intenta de nuevo o escribe por soporte.</p>`
+      : `<p class="hint" style="color:var(--status-ok);">✓ Solicitud registrada. Te contactaremos a ${email} para confirmar antes de eliminar nada.</p>`;
+  }
 }
 function openTermsPanel(){
   openInfoModal(`
@@ -474,6 +499,10 @@ async function repLogin(mode, btn){
   if(mode === 'signup' && !$('rep_auth_name').value.trim()){ alert('Ingresa el nombre de tu agencia o negocio.'); return; }
   if(mode === 'signup' && !$('rep_auth_privacy').checked){ alert('Debes aceptar la política de tratamiento de datos personales para registrarte.'); return; }
   if(!requireSupabase()) return;
+  if(mode !== 'signup'){
+    const lockMsg = checkLoginLockout(email);
+    if(lockMsg){ if(errBox){ errBox.textContent = lockMsg; errBox.style.display = 'block'; } else alert(lockMsg); return; }
+  }
   const originalLabel = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = 'Un momento…'; }
   try{
@@ -491,7 +520,8 @@ async function repLogin(mode, btn){
       }
     } else {
       const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
-      if(error) throw error;
+      if(error){ registerLoginFailure(email); throw error; }
+      registerLoginSuccess(email);
       session = data.session;
     }
     const profile = await ensureProfile(session);
@@ -522,6 +552,11 @@ async function repLogin(mode, btn){
     if(btn){ btn.disabled = false; btn.textContent = originalLabel; }
   }
 }
+// La verificación la marca manualmente el equipo de Conecta Importa desde
+// el panel de Supabase (con fecha y quién la hizo, ver verified_at /
+// verified_by) — el representante NUNCA puede marcar su propio checklist
+// como verificado, por eso esta vista es de solo lectura, sin botón de
+// autoavance.
 function renderRepVerificationChecklist(){
   const box = $('repVerifBox');
   if(!box || !state.repVerifType) return;
@@ -535,21 +570,9 @@ function renderRepVerificationChecklist(){
       ${steps.map(s=>`
         <div class="line-item"><span class="lbl">${state.repVerifStatus[s.k]?'✓':'⏳'} ${s.label}</span><span class="val" style="font-size:11px; color:${state.repVerifStatus[s.k]?'var(--lime-deep)':'var(--ink-faint)'};">${state.repVerifStatus[s.k]?'Listo':'En revisión'}</span></div>
       `).join('')}
-      ${!allDone ? `<button class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="simulateVerifStep()">🧪 (Demo) Avanzar siguiente paso</button>` : ''}
+      ${!allDone ? `<div class="hint" style="margin-top:10px;">La verificación la revisa el equipo de Conecta Importa — te avisamos por correo cuando se actualice tu estado.</div>` : ''}
     </div>
   `;
-}
-async function simulateVerifStep(){
-  const steps = VERIF_STEPS_BY_TYPE[state.repVerifType];
-  const next = steps.find(s=>!state.repVerifStatus[s.k]);
-  if(!next) return;
-  state.repVerifStatus[next.k] = true;
-  renderRepVerificationChecklist();
-  if(supabaseClient && state.repRecordId){
-    await supabaseClient.from('representatives')
-      .update({ verification_status: state.repVerifStatus })
-      .eq('id', state.repRecordId);
-  }
 }
 // ---------------------------------------------------------------------
 // CENTRO DE DUDAS (gamificado) — cliente y representante
@@ -1264,6 +1287,66 @@ function renderSupplierGuide(){
 function setSupplier(v){ state.hasSupplier = v; renderSupplierChoices(); }
 renderSupplierChoices();
 
+// ---------------------------------------------------------------------
+// SUGERENCIA DE CLASIFICACIÓN POR IMAGEN (beta, experimental) — nunca
+// reemplaza la confirmación de la agencia de aduanas en la cotización.
+// ---------------------------------------------------------------------
+let selectedProductImage = null; // { base64, mediaType }
+
+function fileToBase64(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleProductImageSelected(evt){
+  const file = evt.target.files && evt.target.files[0];
+  const btn = $('classifyImageBtn');
+  state.productImageClassification = null;
+  $('productImageResult').innerHTML = '';
+  if(!file){ selectedProductImage = null; btn.disabled = true; return; }
+  if(file.size > 5*1024*1024){
+    $('productImageResult').innerHTML = `<div class="hint" style="color:var(--danger);">La imagen pesa más de 5MB — usa una más liviana.</div>`;
+    btn.disabled = true;
+    return;
+  }
+  const base64 = await fileToBase64(file);
+  selectedProductImage = { base64, mediaType: file.type || 'image/jpeg' };
+  btn.disabled = false;
+}
+
+async function classifyProductImage(){
+  if(!selectedProductImage || !supabaseClient) return;
+  const box = $('productImageResult');
+  const btn = $('classifyImageBtn');
+  btn.disabled = true;
+  box.innerHTML = `<div class="waiting-box" style="padding:6px 0;"><div class="dot-spinner"><span></span><span></span><span></span></div>Analizando imagen…</div>`;
+  try{
+    const { data, error } = await supabaseClient.functions.invoke('classify-product', {
+      body: { image_base64: selectedProductImage.base64, media_type: selectedProductImage.mediaType }
+    });
+    if(error || !data || data.error){
+      box.innerHTML = `<div class="hint" style="color:var(--danger);">${(data && data.error) || 'No pudimos analizar la imagen — intenta con otra foto o continúa sin ella.'}</div>`;
+      btn.disabled = false;
+      return;
+    }
+    state.productImageClassification = data;
+    box.innerHTML = `
+      <div class="info-note" style="margin-top:0;">
+        <b>Sugerencia preliminar:</b> ${data.description} — categoría posible: <b>${data.suggested_category}</b>.
+      </div>
+      <div class="hint" style="margin-top:8px; font-weight:600;">⚠️ ${data.disclaimer}</div>
+    `;
+  } catch(err){
+    box.innerHTML = `<div class="hint" style="color:var(--danger);">No pudimos analizar la imagen — intenta de nuevo.</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // Camino A: el cliente importa a su propio nombre (con RUT de importador,
 // que puede ser como persona natural, sin crear empresa). Camino B: un
 // trading company ya importó y nacionalizó, y le vende al cliente como
@@ -1347,9 +1430,16 @@ function renderProfileResult(){
       extraNote = '<div class="hint" style="margin-top:10px;">Con un valor FOB bajo (menos de USD 1.000), la ley no te exige usar una agencia de aduanas — podrías declarar tú mismo. Aun así, muchos prefieren apoyarse en un agente de sourcing para la parte de negociar con el proveedor.</div>';
     } else if(recommendation === 'A' && status === 'empresaImporta' && (value==='v2' || value==='v3')){
       extraNote = '<div class="hint" style="margin-top:10px;">Como tu volumen todavía no llega a un contenedor completo, te conviene comparar agencias por su capacidad de consolidar carga (LCL) con otros importadores de tu misma ruta, no solo por precio.</div>';
+    } else if(recommendation === 'B' && state.hasSupplier === 'yes'){
+      // El catálogo de un trading company es solo lo que ya tiene nacionalizado —
+      // no incluye automáticamente el proveedor que ella ya encontró. Sin esta
+      // nota, "revisar el catálogo" suena a ignorar esa respuesta.
+      extraNote = '<div class="hint" style="margin-top:10px;">Ya tienes tu propio proveedor identificado — el catálogo de un trading company es solo lo que ya tiene nacionalizado, así que puede no incluirlo. Cuando contactes a uno, cuéntale cuál es tu proveedor: algunos evalúan traerlo por encargo, además de mostrarte lo que ya tienen disponible.</div>';
     }
     const nextStepText = recommendation === 'B'
-      ? 'Próximo paso: revisar el catálogo de trading companies disponibles — toma menos de 2 minutos.'
+      ? (state.hasSupplier === 'yes'
+          ? 'Próximo paso: contacta a un trading company y cuéntale que ya tienes proveedor — toma menos de 2 minutos.'
+          : 'Próximo paso: revisar el catálogo de trading companies disponibles — toma menos de 2 minutos.')
       : 'Próximo paso: revisar representantes verificados para tu categoría — toma menos de 2 minutos.';
     box.innerHTML = summaryHtml + `
       <div class="card" style="border-color:var(--ink); background:var(--lime-tint);">
@@ -2192,12 +2282,21 @@ function renderContactCapture(){
         <div><label class="field-label">Correo electrónico</label><input type="email" id="contact_email" autocomplete="email" placeholder="tucorreo@ejemplo.com"></div>
         <div><label class="field-label">WhatsApp (opcional)</label><input type="tel" id="contact_whatsapp" autocomplete="tel" placeholder="+57 300 000 0000"></div>
       </div>
+      <div style="position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden;" aria-hidden="true">
+        <label for="hp_website">Sitio web</label>
+        <input type="text" id="hp_website" name="website" tabindex="-1" autocomplete="off">
+      </div>
       <button class="btn btn-primary" style="margin-top:12px;" onclick="submitContactAndSend()">Enviar solicitud</button>
     </div>
   `;
   $('quoteResult').scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 async function submitContactAndSend(){
+  // Honeypot anti-bot: un campo invisible para personas pero que los bots
+  // de llenado automático de formularios sí rellenan — si viene con algo,
+  // se descarta en silencio (sin avisar, para no darle pistas al bot).
+  const honeypot = $('hp_website');
+  if(honeypot && honeypot.value){ return; }
   const email = $('contact_email').value.trim();
   if(!email){ alert('Ingresa un correo para poder avisarte cuando respondan.'); return; }
   state.contactEmail = email;
@@ -2227,7 +2326,9 @@ async function proceedToWaiting(){
         product_name: p.name,
         quantity: q.qty,
         fob_usd: q.total,
-        preliminary_quote: q
+        preliminary_quote: q,
+        ai_classification: state.productImageClassification || null,
+        ai_classification_disclaimer_shown_at: state.productImageClassification ? state.productImageClassification.disclaimer_shown_at : null
       };
     } else {
       const q = state.preliminaryQuote || computeQuoteLines();
@@ -2248,7 +2349,9 @@ async function proceedToWaiting(){
         verification_level: state.verif,
         incoterm: state.incoterm,
         price_locked: state.priceLocked,
-        preliminary_quote: q
+        preliminary_quote: q,
+        ai_classification: state.productImageClassification || null,
+        ai_classification_disclaimer_shown_at: state.productImageClassification ? state.productImageClassification.disclaimer_shown_at : null
       };
     }
     const { data, error } = await supabaseClient.from('quote_requests').insert(payload).select().single();
@@ -2458,13 +2561,18 @@ async function createAccountAndContinue(mode, btn){
   if(!email || !pass){ alert('Ingresa correo y contraseña.'); return; }
   if(mode !== 'login' && !$('auth_privacy').checked){ alert('Debes aceptar la política de tratamiento de datos personales para crear tu cuenta.'); return; }
   if(!requireSupabase()) return;
+  if(mode === 'login'){
+    const lockMsg = checkLoginLockout(email);
+    if(lockMsg){ if(errBox){ errBox.textContent = lockMsg; errBox.style.display = 'block'; } else alert(lockMsg); return; }
+  }
   const originalLabel = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = 'Un momento…'; }
   try{
     let session;
     if(mode === 'login'){
       const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
-      if(error) throw error;
+      if(error){ registerLoginFailure(email); throw error; }
+      registerLoginSuccess(email);
       session = data.session;
     } else {
       const name = $('auth_name') ? $('auth_name').value.trim() : '';
@@ -2653,6 +2761,99 @@ function renderDocs(){
   `).join('');
 }
 renderDocs();
+
+// ---------------------------------------------------------------------
+// LOG DE ERRORES DEL CLIENTE — sin depender de que el usuario los
+// reporte. Escribe directo en client_error_logs (insert público, nadie
+// puede leerlos con la llave pública — son para revisión del equipo).
+// ---------------------------------------------------------------------
+let clientErrorLogCount = 0;
+const CLIENT_ERROR_LOG_MAX_PER_SESSION = 20; // evita spamear la tabla si algo entra en bucle
+function logClientError(message, stack){
+  if(!supabaseClient || clientErrorLogCount >= CLIENT_ERROR_LOG_MAX_PER_SESSION) return;
+  clientErrorLogCount++;
+  supabaseClient.from('client_error_logs').insert({
+    account_id: state.accountId || null,
+    message: String(message || '').slice(0, 2000),
+    stack: stack ? String(stack).slice(0, 4000) : null,
+    url: location.href,
+    user_agent: navigator.userAgent
+  }).then(()=>{}, ()=>{});
+}
+window.addEventListener('error', (e) => logClientError(e.message, e.error && e.error.stack));
+window.addEventListener('unhandledrejection', (e) => logClientError('Unhandled promise rejection: ' + (e.reason && e.reason.message || e.reason), e.reason && e.reason.stack));
+
+// ---------------------------------------------------------------------
+// CHAT DE SOPORTE (asistente virtual, alcance acotado a FAQ de la
+// plataforma) — llama a la Edge Function support-chat, que a su vez
+// llama a la API de Claude desde el servidor (la llave nunca está aquí).
+// ---------------------------------------------------------------------
+let chatConversationId = null;
+let chatLastFocus = null;
+let chatSending = false;
+
+function appendChatMessage(text, cls){
+  const box = $('supportChatMessages');
+  if(!box) return;
+  const div = document.createElement('div');
+  div.className = 'chat-msg ' + cls;
+  div.textContent = text;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+function toggleSupportChat(){
+  const panel = $('supportChatPanel');
+  const fab = $('chatFab');
+  if(!panel || !fab) return;
+  if(panel.hidden){
+    chatLastFocus = document.activeElement;
+    panel.hidden = false;
+    fab.setAttribute('aria-expanded', 'true');
+    const input = $('supportChatInput');
+    if(input) input.focus();
+  } else {
+    panel.hidden = true;
+    fab.setAttribute('aria-expanded', 'false');
+    (chatLastFocus || fab).focus();
+  }
+}
+
+async function submitSupportChat(evt){
+  evt.preventDefault();
+  if(chatSending) return false;
+  const input = $('supportChatInput');
+  const text = (input.value || '').trim();
+  if(!text) return false;
+  if(!supabaseClient){
+    appendChatMessage('No hay conexión con el servicio de chat ahora mismo. Intenta más tarde, o usa "Hablar con una persona".', 'chat-msg-error');
+    return false;
+  }
+  appendChatMessage(text, 'chat-msg-user');
+  input.value = '';
+  chatSending = true;
+  appendChatMessage('Escribiendo…', 'chat-msg-assistant chat-msg-pending');
+  try{
+    const { data, error } = await supabaseClient.functions.invoke('support-chat', {
+      body: { message: text, conversation_id: chatConversationId }
+    });
+    const pending = document.querySelector('.chat-msg-pending');
+    if(pending) pending.remove();
+    if(error || !data || data.error){
+      appendChatMessage((data && data.error) || 'Tuvimos un problema respondiendo. Intenta de nuevo, o habla con una persona.', 'chat-msg-error');
+    } else {
+      chatConversationId = data.conversation_id || chatConversationId;
+      appendChatMessage(data.reply, 'chat-msg-assistant');
+    }
+  } catch(err){
+    const pending = document.querySelector('.chat-msg-pending');
+    if(pending) pending.remove();
+    appendChatMessage('Tuvimos un problema de conexión. Intenta de nuevo, o habla con una persona.', 'chat-msg-error');
+  } finally {
+    chatSending = false;
+  }
+  return false;
+}
 
 // Al final, porque necesita las funciones y el `state` definidos arriba.
 restoreSession();

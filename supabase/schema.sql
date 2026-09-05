@@ -275,3 +275,199 @@ alter table profiles add column privacy_accepted_at timestamptz;
 -- (persona natural o jurídica) para cuando se defina el régimen aplicable
 -- a cada tipo — no cambia ningún flujo todavía, solo lo deja capturado.
 alter table representatives add column legal_person_type text check (legal_person_type in ('natural','juridica'));
+
+-- ============================================================
+-- MIGRACIÓN: chat de soporte con IA (alcance acotado a FAQ)
+-- ------------------------------------------------------------
+-- Guarda cada conversación para que Jhoana pueda revisar calidad
+-- periódicamente (directo en el SQL Editor o el Table Editor de
+-- Supabase — no hay panel propio en la app todavía).
+-- Los mensajes los escribe la Edge Function support-chat con la
+-- service_role key (no el navegador), por eso no hace falta una
+-- policy de "insert" para el cliente.
+-- Cómo aplicar: pégala y corre en el SQL Editor de Supabase.
+-- ============================================================
+create table chat_conversations (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid references auth.users(id) on delete set null,
+  escalated boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create table chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references chat_conversations(id) on delete cascade,
+  role text not null check (role in ('user','assistant')),
+  content text not null,
+  created_at timestamptz not null default now()
+);
+alter table chat_conversations enable row level security;
+alter table chat_messages enable row level security;
+create policy "chat_conversations: ver las propias" on chat_conversations
+  for select using (auth.uid() = account_id);
+create policy "chat_messages: ver las propias" on chat_messages
+  for select using (
+    conversation_id in (select id from chat_conversations where account_id = auth.uid())
+  );
+
+-- ============================================================
+-- MIGRACIÓN: sugerencia de clasificación arancelaria por imagen (beta)
+-- ------------------------------------------------------------
+-- Guarda la sugerencia generada y evidencia de que el aviso de "esto no
+-- es una clasificación definitiva" sí se mostró — no es solo un dato de
+-- producto, es evidencia de que se comunicó el límite de la sugerencia.
+-- Cómo aplicar: pégala y corre en el SQL Editor de Supabase.
+-- ============================================================
+alter table quote_requests add column ai_classification jsonb;
+alter table quote_requests add column ai_classification_disclaimer_shown_at timestamptz;
+
+-- ============================================================
+-- MIGRACIÓN: seguridad — políticas de RLS que faltaban, verificación
+-- manual de representantes, solicitudes de eliminación de datos, log de
+-- errores del cliente, e índices para las columnas más consultadas.
+-- ------------------------------------------------------------
+-- Cómo aplicar: pégala y corre en el SQL Editor de Supabase.
+-- ============================================================
+
+-- "orders", "shipment_events" y "ratings" ya tenían Row Level Security
+-- ACTIVADO desde el inicio, pero nunca se les creó ninguna política —
+-- eso significa que hoy, con solo la llave pública, NADIE puede leerlas
+-- ni escribirlas (ni el cliente dueño ni su representante). Sin estas
+-- políticas, el seguimiento del pedido no puede funcionar de verdad.
+create policy "orders: ver las propias (cliente)" on orders
+  for select using (
+    quote_request_id in (select id from quote_requests where client_id = auth.uid())
+  );
+create policy "orders: ver las propias (representante)" on orders
+  for select using (
+    quote_request_id in (
+      select qr.id from quote_requests qr
+      join representatives r on r.id = qr.representative_id
+      where r.profile_id = auth.uid()
+    )
+  );
+create policy "orders: cliente puede crear la propia" on orders
+  for insert with check (
+    quote_request_id in (select id from quote_requests where client_id = auth.uid())
+  );
+create policy "orders: representante puede avanzar etapa" on orders
+  for update using (
+    quote_request_id in (
+      select qr.id from quote_requests qr
+      join representatives r on r.id = qr.representative_id
+      where r.profile_id = auth.uid()
+    )
+  );
+
+create policy "shipment_events: ver los propios (cliente)" on shipment_events
+  for select using (
+    order_id in (
+      select o.id from orders o
+      join quote_requests qr on qr.id = o.quote_request_id
+      where qr.client_id = auth.uid()
+    )
+  );
+create policy "shipment_events: ver los propios (representante)" on shipment_events
+  for select using (
+    order_id in (
+      select o.id from orders o
+      join quote_requests qr on qr.id = o.quote_request_id
+      join representatives r on r.id = qr.representative_id
+      where r.profile_id = auth.uid()
+    )
+  );
+create policy "shipment_events: representante puede registrar avance" on shipment_events
+  for insert with check (
+    order_id in (
+      select o.id from orders o
+      join quote_requests qr on qr.id = o.quote_request_id
+      join representatives r on r.id = qr.representative_id
+      where r.profile_id = auth.uid()
+    )
+  );
+
+-- Las calificaciones son prueba social pública (como el rating agregado
+-- del representante, que ya es visible para todos en el marketplace).
+create policy "ratings: visibles para todos" on ratings
+  for select using (true);
+create policy "ratings: cliente puede calificar su propio pedido" on ratings
+  for insert with check (
+    order_id in (
+      select o.id from orders o
+      join quote_requests qr on qr.id = o.quote_request_id
+      where qr.client_id = auth.uid()
+    )
+  );
+
+-- ------------------------------------------------------------
+-- Verificación manual de representantes (nunca autocertificada)
+-- ------------------------------------------------------------
+-- Antes, un botón de demo dejaba que el representante avanzara su propio
+-- checklist de verificación — se quitó del frontend, y esto lo cierra
+-- también a nivel de base de datos: aunque alguien intente llamar a la
+-- API directamente con la llave pública, no puede tocar estas columnas.
+-- Deja verified_at/verified_by para que quede registro de fecha y quién
+-- hizo la verificación manual (por ahora, el equipo de Conecta Importa
+-- directamente en el Table Editor de Supabase).
+alter table representatives add column verified_at timestamptz;
+alter table representatives add column verified_by text;
+
+revoke update on representatives from authenticated, anon;
+grant update (
+  business_name, categories, available, min_order_usd,
+  commission_type, commission_value, bank_entity, bank_account_type,
+  bank_last4, legal_person_type
+) on representatives to authenticated;
+-- nit_or_cedula, dian_license, rep_type, verification_status, rating,
+-- operations_count, verified_at, verified_by, profile_id quedan fuera:
+-- solo se editan desde el Table Editor de Supabase (o una función propia
+-- con service_role, si más adelante se construye un panel de admin).
+
+-- ------------------------------------------------------------
+-- Solicitud de eliminación de datos (Ley 1581 de 2012)
+-- ------------------------------------------------------------
+-- No se borra automáticamente al pedirlo (borrar en cascada sin
+-- supervisión es riesgoso) — queda registrada la solicitud, con fecha,
+-- para que el equipo la atienda y confirme por ese mismo medio.
+create table data_deletion_requests (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid references auth.users(id) on delete set null,
+  contact_email text not null,
+  note text,
+  status text not null default 'pending' check (status in ('pending','done')),
+  created_at timestamptz not null default now()
+);
+alter table data_deletion_requests enable row level security;
+create policy "data_deletion_requests: crear la propia" on data_deletion_requests
+  for insert with check (auth.uid() = account_id);
+create policy "data_deletion_requests: ver las propias" on data_deletion_requests
+  for select using (auth.uid() = account_id);
+
+-- ------------------------------------------------------------
+-- Log de errores del cliente (sin depender de que el usuario los reporte)
+-- ------------------------------------------------------------
+create table client_error_logs (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid references auth.users(id) on delete set null,
+  message text not null,
+  stack text,
+  url text,
+  user_agent text,
+  created_at timestamptz not null default now()
+);
+alter table client_error_logs enable row level security;
+create policy "client_error_logs: cualquiera puede reportar" on client_error_logs
+  for insert with check (true);
+-- Nadie puede leerlos con la llave pública (ni siquiera el que lo mandó) —
+-- son para revisión del equipo desde el Table Editor de Supabase.
+
+-- ------------------------------------------------------------
+-- Índices en las columnas más consultadas (listados del wizard, portal
+-- de representante, catálogo)
+-- ------------------------------------------------------------
+create index if not exists idx_quote_requests_representative_id on quote_requests(representative_id);
+create index if not exists idx_quote_requests_client_id on quote_requests(client_id);
+create index if not exists idx_quote_requests_status on quote_requests(status);
+create index if not exists idx_representatives_profile_id on representatives(profile_id);
+create index if not exists idx_products_representative_id on products(representative_id);
+create index if not exists idx_orders_quote_request_id on orders(quote_request_id);
+create index if not exists idx_shipment_events_order_id on shipment_events(order_id);

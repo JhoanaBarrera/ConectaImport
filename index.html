@@ -189,7 +189,6 @@
 
 <!-- ============ APP (flujo de importación) ============ -->
 <div id="appShell" style="display:none;">
-<button onclick="openSupport()" aria-label="Hablar con soporte" style="position:fixed; bottom:16px; right:16px; width:52px;height:52px;border-radius:50%; background:var(--lime); border:none; font-size:21px; cursor:pointer; box-shadow:0 10px 24px rgba(0,0,0,.25); z-index:35;">💬</button>
 
 <div class="app-header">
   <div class="app-header-inner">
@@ -259,6 +258,16 @@
           </div>
         </div>
         <div id="permitsCard" style="margin-top:14px;"></div>
+
+        <div class="form-section">
+          <div class="form-section-title">¿Tienes una foto del producto? <span class="pill pill-muted" style="font-size:9.5px;">Beta</span></div>
+          <p class="hint" style="margin-top:0;">Opcional — sube una foto y te damos una sugerencia preliminar de categoría, solo para orientarte.</p>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <input type="file" id="productImageInput" accept="image/*" onchange="handleProductImageSelected(event)">
+            <button type="button" class="btn btn-outline btn-sm" id="classifyImageBtn" onclick="classifyProductImage()" disabled>Analizar imagen</button>
+          </div>
+          <div id="productImageResult" style="margin-top:10px;"></div>
+        </div>
       </div>
       <button class="btn btn-primary btn-block" onclick="goProfileSubstep(2)">Continuar →</button>
     </div>
@@ -513,6 +522,28 @@
       <div id="repShipmentPanel"></div>
       <div id="repFaqDeck" style="margin-top:20px;"></div>
     </div>
+  </div>
+</div>
+
+<button type="button" id="chatFab" class="chat-fab" aria-label="Abrir chat de soporte (asistente virtual)" aria-expanded="false" aria-controls="supportChatPanel" onclick="toggleSupportChat()">💬</button>
+
+<div class="chat-panel" id="supportChatPanel" role="dialog" aria-modal="false" aria-label="Chat de soporte" hidden>
+  <div class="chat-panel-head">
+    <div>
+      <div class="chat-panel-title">Asistente virtual</div>
+      <div class="chat-panel-sub">Conecta Importa · no es una persona</div>
+    </div>
+    <button type="button" class="chat-panel-close" aria-label="Cerrar chat" onclick="toggleSupportChat()">✕</button>
+  </div>
+  <div class="chat-panel-body" id="supportChatMessages" aria-live="polite">
+    <div class="chat-msg chat-msg-assistant">Hola 👋 Soy el asistente virtual de Conecta Importa. Puedo explicarte cómo funciona la plataforma (pasos, fee de activación, Camino A/B, incoterms). No doy asesoría sobre tu caso puntual — para eso, habla con una persona del equipo.</div>
+  </div>
+  <div class="chat-panel-footer">
+    <a href="https://wa.me/573000000000" target="_blank" rel="noopener" class="chat-escalate-link">Hablar con una persona →</a>
+    <form id="supportChatForm" class="chat-form" onsubmit="return submitSupportChat(event)">
+      <input type="text" id="supportChatInput" placeholder="Escribe tu pregunta…" autocomplete="off" maxlength="600">
+      <button type="submit" class="btn btn-primary btn-sm" aria-label="Enviar">Enviar</button>
+    </form>
   </div>
 </div>
 

@@ -14,6 +14,31 @@ function requireSupabase(){
   return true;
 }
 
+// Bloqueo básico del lado del navegador tras varios intentos fallidos de
+// login seguidos — Supabase Auth ya limita fuerza bruta del lado del
+// servidor; esto es una capa extra para no dejar reintentar sin pausa
+// desde la misma pestaña (se reinicia si recargas la página).
+const LOGIN_LOCKOUT_MAX_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_MS = 60000;
+const loginAttempts = {};
+function checkLoginLockout(key){
+  const a = loginAttempts[key];
+  if(a && a.lockedUntil && Date.now() < a.lockedUntil){
+    const secs = Math.ceil((a.lockedUntil - Date.now())/1000);
+    return `Demasiados intentos fallidos — espera ${secs}s antes de volver a intentar.`;
+  }
+  return null;
+}
+function registerLoginFailure(key){
+  const a = loginAttempts[key] || (loginAttempts[key] = { count:0, lockedUntil:0 });
+  a.count++;
+  if(a.count >= LOGIN_LOCKOUT_MAX_ATTEMPTS){
+    a.lockedUntil = Date.now() + LOGIN_LOCKOUT_MS;
+    a.count = 0;
+  }
+}
+function registerLoginSuccess(key){ delete loginAttempts[key]; }
+
 function friendlyAuthError(err){
   const msg = (err && err.message) || '';
   if(/already registered/i.test(msg)) return 'Ya existe una cuenta con ese correo — intenta iniciar sesión en vez de crear una nueva.';
