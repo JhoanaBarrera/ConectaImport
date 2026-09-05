@@ -2350,8 +2350,8 @@ function generateQuote(){
   $('quoteResult').innerHTML = `
     <div class="card">
       <div class="quote-stage-label">
-        <span class="pill pill-warn">Estimado automático</span>
-        <span class="hint" style="margin:0;">Calculado por la plataforma con tarifas de referencia</span>
+        <span class="pill pill-warn">Estimación de escenario</span>
+        <span class="hint" style="margin:0;">No es tu cotización real — calculado con tarifas de referencia, antes de que tu representante confirme valores reales</span>
       </div>
       <div class="section-title">Cotización preliminar · ${state.mode} · ${verifLabels[state.verif]}</div>
       ${quoteLinesHtml(q, qty)}
@@ -2386,8 +2386,8 @@ function renderCompareQuotes(){
   $('quoteResult').style.display = 'block';
   $('quoteResult').innerHTML = `
     <div class="quote-stage-label">
-      <span class="pill pill-warn">Estimados automáticos</span>
-      <span class="hint" style="margin:0;">Comparando ${quotes.length} opciones para el mismo pedido</span>
+      <span class="pill pill-warn">Estimaciones de escenario</span>
+      <span class="hint" style="margin:0;">No son tu cotización real — comparando ${quotes.length} opciones con tarifas de referencia para el mismo pedido</span>
     </div>
     ${quotes.map((item,i)=>`
       <div class="card ${i===0?'':''}" style="${i===0?'border-color:var(--ink);':''}">
@@ -2605,12 +2605,71 @@ function renderConfirmedQuote(){
       <div class="hint">Estos son los valores reales que aplicará ${repName}, ya con el flete cotizado a la tarifa vigente. Al aceptar, se compromete el pedido.</div>
       <div class="hint" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">Además de esto, Conecta Importa cobra un <b>fee de activación de ${fmtUsd(getPlatformFee(q.fob))}</b> (ejemplo, por definir) — es un cobro aparte de la plataforma, no de ${repName}.</div>
       <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="handleAcceptConfirmed()">Aceptar cotización confirmada</button>
+        <button class="btn btn-primary" id="acceptConfirmedBtn" disabled onclick="handleAcceptConfirmed()">Aceptar cotización confirmada</button>
         <button class="btn btn-outline">Solicitar otro ajuste</button>
       </div>
     </div>
+    ${complianceExpedienteHtml()}
     ${unitLinesHtml(q, qty, 'confirmed')}
   `;
+}
+// El expediente bloquea "Aceptar" hasta completarlo — no es solo una
+// validación del frontend: accept_quote_request() en la base de datos
+// también lo exige, así que aunque alguien llame a la API directo sin
+// pasar por este formulario, no puede aceptar sin el expediente guardado.
+function complianceExpedienteHtml(){
+  return `
+    <div class="card" id="complianceCard">
+      <div class="section-title">Expediente de cumplimiento</div>
+      <p class="hint" style="margin-top:0;">Esto queda ligado a tu pedido — tu representante y la plataforma lo necesitan antes de que puedas aceptar.</p>
+      <div class="grid">
+        <div><label class="field-label">Descripción técnica del producto</label><textarea id="cx_description" rows="2" placeholder="Qué es, para qué sirve, material principal…"></textarea></div>
+        <div><label class="field-label">País de origen</label><input type="text" id="cx_origin" placeholder="Ej. China"></div>
+        <div><label class="field-label">Datos del proveedor (nombre / contacto)</label><input type="text" id="cx_supplier" placeholder="Nombre de la fábrica o tienda"></div>
+      </div>
+      <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
+        <label style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; cursor:pointer;"><input type="checkbox" id="cx_proforma" style="width:auto; margin-top:2px;"> Tengo (o tendré antes del despacho) factura proforma del proveedor</label>
+        <label style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; cursor:pointer;"><input type="checkbox" id="cx_packing" style="width:auto; margin-top:2px;"> Tengo (o tendré antes del despacho) lista de empaque (packing list)</label>
+        <label style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; cursor:pointer;"><input type="checkbox" id="cx_permits" style="width:auto; margin-top:2px;"> Ya revisé los permisos previos que aplican a mi categoría de producto</label>
+        <label style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; cursor:pointer;"><input type="checkbox" id="cx_commercial" style="width:auto; margin-top:2px;"> Declaro que el uso de esta importación es comercial</label>
+      </div>
+      <div id="complianceError" class="hint" style="color:var(--danger); display:none; margin-top:8px;"></div>
+      <div id="complianceSaved" class="hint" style="color:var(--status-ok); display:none; margin-top:8px;">✓ Expediente guardado — ya puedes aceptar la cotización confirmada.</div>
+      <button type="button" class="btn btn-outline btn-block" style="margin-top:10px;" onclick="saveComplianceExpediente()">Guardar expediente</button>
+    </div>
+  `;
+}
+async function saveComplianceExpediente(){
+  const data = {
+    product_description: ($('cx_description').value || '').trim(),
+    origin_country: ($('cx_origin').value || '').trim(),
+    supplier_info: ($('cx_supplier').value || '').trim(),
+    has_proforma_invoice: $('cx_proforma').checked,
+    has_packing_list: $('cx_packing').checked,
+    permits_reviewed: $('cx_permits').checked,
+    commercial_use_declared: $('cx_commercial').checked
+  };
+  const errBox = $('complianceError');
+  const savedBox = $('complianceSaved');
+  const incomplete = !data.product_description || !data.origin_country || !data.supplier_info
+    || !data.has_proforma_invoice || !data.has_packing_list || !data.permits_reviewed || !data.commercial_use_declared;
+  if(incomplete){
+    errBox.textContent = 'Completa los 3 campos y marca las 4 casillas antes de guardar.';
+    errBox.style.display = 'block';
+    savedBox.style.display = 'none';
+    return;
+  }
+  errBox.style.display = 'none';
+  if(!supabaseClient || !state.quoteRequestDbId) return;
+  const { error } = await supabaseClient.rpc('save_compliance_expediente', { p_id: state.quoteRequestDbId, p_data: data });
+  if(error){
+    errBox.textContent = 'No se pudo guardar: ' + error.message;
+    errBox.style.display = 'block';
+    return;
+  }
+  savedBox.style.display = 'block';
+  const acceptBtn = $('acceptConfirmedBtn');
+  if(acceptBtn) acceptBtn.disabled = false;
 }
 
 function renderCatalogConfirmedQuote(){

@@ -547,3 +547,79 @@ begin
 end;
 $$;
 grant execute on function reject_quote_request(uuid, text, text) to authenticated;
+
+-- ============================================================
+-- MIGRACIÓN: expediente de cumplimiento (Camino A)
+-- ------------------------------------------------------------
+-- Antes, "Aceptar cotización confirmada" no exigía nada más que la
+-- cotización confirmada — se podía aceptar sin haber declarado país de
+-- origen, datos del proveedor, si hay factura proforma / lista de
+-- empaque, si ya se revisaron los permisos previos, ni una declaración
+-- de uso comercial. Ahora ese expediente se guarda con su propia
+-- función (solo mientras la solicitud sigue en 'responded', antes de
+-- aceptar) y accept_quote_request EXIGE que esté completo — no es un
+-- checklist decorativo del frontend, si falta algo el backend rechaza
+-- la aceptación.
+-- Cómo aplicar: pégala y corre en el SQL Editor de Supabase.
+-- ============================================================
+alter table quote_requests add column compliance_expediente jsonb;
+
+create or replace function save_compliance_expediente(p_id uuid, p_data jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update quote_requests
+  set compliance_expediente = p_data, updated_at = now()
+  where id = p_id
+    and client_id = auth.uid()
+    and status = 'responded';
+  if not found then
+    raise exception 'No se pudo guardar el expediente: la solicitud no existe, no es tuya, o ya no está en el estado correcto.';
+  end if;
+end;
+$$;
+grant execute on function save_compliance_expediente(uuid, jsonb) to authenticated;
+
+create or replace function accept_quote_request(p_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_expediente jsonb;
+  v_product_id uuid;
+begin
+  select compliance_expediente, product_id into v_expediente, v_product_id
+  from quote_requests
+  where id = p_id and client_id = auth.uid() and status = 'responded';
+  -- El expediente de cumplimiento (importación) solo aplica al Camino A
+  -- (product_id nulo) — en Camino B el cliente compra algo que el
+  -- trading company ya nacionalizó, no es él quien importa.
+  if v_product_id is null and (
+     v_expediente is null
+     or coalesce(trim(v_expediente->>'product_description'), '') = ''
+     or coalesce(trim(v_expediente->>'origin_country'), '') = ''
+     or coalesce(trim(v_expediente->>'supplier_info'), '') = ''
+     or (v_expediente->>'has_proforma_invoice')::boolean is not true
+     or (v_expediente->>'has_packing_list')::boolean is not true
+     or (v_expediente->>'permits_reviewed')::boolean is not true
+     or (v_expediente->>'commercial_use_declared')::boolean is not true
+  ) then
+    raise exception 'Falta completar el expediente de cumplimiento antes de aceptar (descripción, país de origen, proveedor, factura proforma, lista de empaque, permisos revisados, declaración de uso comercial).';
+  end if;
+
+  update quote_requests
+  set status = 'accepted', updated_at = now()
+  where id = p_id
+    and client_id = auth.uid()
+    and status = 'responded';
+  if not found then
+    raise exception 'No se pudo aceptar: la solicitud no existe, no es tuya, o no está en un estado que se pueda aceptar.';
+  end if;
+end;
+$$;
+grant execute on function accept_quote_request(uuid) to authenticated;

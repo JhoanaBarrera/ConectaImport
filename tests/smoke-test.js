@@ -334,6 +334,48 @@ async function run(){
     await page.close();
   }
 
+  // ---------------- J. EXPEDIENTE DE CUMPLIMIENTO (Camino A) ----------------
+  console.log('J. Expediente de cumplimiento antes de aceptar');
+  {
+    const page = await browser.newPage({ viewport:{ width:390, height:900 } });
+    await mockSupabase(page);
+    await page.goto(BASE_URL, { waitUntil:'networkidle' });
+    await page.click('.hero-cta-primary');
+    await page.waitForTimeout(200);
+    await page.evaluate(() => {
+      state.path = 'A'; state.mode = 'LCL'; state.verif = 'none'; state.incoterm = 'FOB';
+      state.quoteRequestDbId = 'fake-quote-id';
+      $('quoteRepName').textContent = 'Rep de prueba';
+      state.lastQuote = { fob:1000, freight:100, insurance:5, exwFee:0, cif:1105, tariffRate:15, tariff:165.75, ivaRate:19, iva:241.2, verifCost:0, repCommission:30, agentFee:220, inlandFee:0, lockFee:0, total:1761.95, incoterm:'FOB' };
+      renderConfirmedQuote();
+    });
+    await page.waitForTimeout(200);
+    const disabledBefore = await page.$eval('#acceptConfirmedBtn', el => el.disabled);
+    check('J1 "Aceptar" empieza deshabilitado sin expediente', disabledBefore === true);
+
+    // Expediente incompleto: no debe habilitar el botón.
+    await page.evaluate(() => saveComplianceExpediente());
+    await page.waitForTimeout(100);
+    const stillDisabled = await page.$eval('#acceptConfirmedBtn', el => el.disabled);
+    check('J2 sigue deshabilitado si el expediente está incompleto', stillDisabled === true);
+
+    // Expediente completo: ahora sí debe habilitarse.
+    await page.evaluate(() => {
+      $('cx_description').value = 'Filtros de aceite para motor automotriz';
+      $('cx_origin').value = 'China';
+      $('cx_supplier').value = 'Fábrica Shenzhen Auto Parts';
+      $('cx_proforma').checked = true;
+      $('cx_packing').checked = true;
+      $('cx_permits').checked = true;
+      $('cx_commercial').checked = true;
+    });
+    await page.evaluate(() => saveComplianceExpediente());
+    await page.waitForTimeout(100);
+    const enabledAfter = await page.$eval('#acceptConfirmedBtn', el => !el.disabled);
+    check('J3 se habilita "Aceptar" tras guardar el expediente completo', enabledAfter);
+    await page.close();
+  }
+
   // ---------------- I. ACCESIBILIDAD BÁSICA ----------------
   console.log('I. Accesibilidad');
   {
