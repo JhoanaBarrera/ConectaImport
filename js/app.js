@@ -1329,7 +1329,9 @@ async function classifyProductImage(){
       body: { image_base64: selectedProductImage.base64, media_type: selectedProductImage.mediaType }
     });
     if(error || !data || data.error){
-      box.innerHTML = `<div class="hint" style="color:var(--danger);">${(data && data.error) || 'No pudimos analizar la imagen — intenta con otra foto o continúa sin ella.'}</div>`;
+      const detail = await describeFunctionError(error, data);
+      console.error('classify-product error:', detail);
+      box.innerHTML = `<div class="hint" style="color:var(--danger);">No pudimos analizar la imagen — intenta con otra foto o continúa sin ella.</div><div class="hint" style="margin-top:4px; font-size:10.5px; color:var(--ink-faint);">Detalle técnico (revisa la consola del navegador): ${detail}</div>`;
       btn.disabled = false;
       return;
     }
@@ -1341,10 +1343,32 @@ async function classifyProductImage(){
       <div class="hint" style="margin-top:8px; font-weight:600;">⚠️ ${data.disclaimer}</div>
     `;
   } catch(err){
-    box.innerHTML = `<div class="hint" style="color:var(--danger);">No pudimos analizar la imagen — intenta de nuevo.</div>`;
+    console.error('classify-product exception:', err);
+    box.innerHTML = `<div class="hint" style="color:var(--danger);">No pudimos analizar la imagen — intenta de nuevo. (${err && err.message})</div>`;
   } finally {
     btn.disabled = false;
   }
+}
+
+// Ayuda a diagnosticar fallas de una Edge Function sin exponer nada
+// sensible: intenta leer el cuerpo real de la respuesta de error (donde
+// suele venir el mensaje útil, ej. "Missing ANTHROPIC_API_KEY" o un 404
+// si la función no está desplegada) en vez de solo mostrar "Failed to
+// fetch" o un objeto vacío.
+async function describeFunctionError(error, data){
+  if(data && data.error) return data.error;
+  if(!error) return 'Error desconocido.';
+  try{
+    if(error.context && typeof error.context.json === 'function'){
+      const body = await error.context.clone().json();
+      if(body && body.error) return body.error;
+    }
+    if(error.context && typeof error.context.text === 'function'){
+      const text = await error.context.clone().text();
+      if(text) return `HTTP ${error.context.status || ''}: ${text}`.trim();
+    }
+  } catch(_e){}
+  return error.message || String(error);
 }
 
 // Camino A: el cliente importa a su propio nombre (con RUT de importador,
@@ -2840,6 +2864,8 @@ async function submitSupportChat(evt){
     const pending = document.querySelector('.chat-msg-pending');
     if(pending) pending.remove();
     if(error || !data || data.error){
+      const detail = await describeFunctionError(error, data);
+      console.error('support-chat error:', detail);
       appendChatMessage((data && data.error) || 'Tuvimos un problema respondiendo. Intenta de nuevo, o habla con una persona.', 'chat-msg-error');
     } else {
       chatConversationId = data.conversation_id || chatConversationId;
@@ -2848,6 +2874,7 @@ async function submitSupportChat(evt){
   } catch(err){
     const pending = document.querySelector('.chat-msg-pending');
     if(pending) pending.remove();
+    console.error('support-chat exception:', err);
     appendChatMessage('Tuvimos un problema de conexión. Intenta de nuevo, o habla con una persona.', 'chat-msg-error');
   } finally {
     chatSending = false;
