@@ -263,6 +263,52 @@ create table if not exists client_error_logs (
 );
 
 -- ============================================================
+-- REGLAS DE VALORES (CHECK constraints) — se rehacen SIEMPRE, no solo
+-- "si no existen"
+-- ------------------------------------------------------------
+-- A diferencia de las tablas/columnas de arriba, un "create table if not
+-- exists" NUNCA actualiza las reglas de una tabla que ya existía — así
+-- que si en algún momento (por ejemplo, antes de que quedaran definidos
+-- los 4 roles actuales de representante) una tabla se creó con una regla
+-- distinta a la de este archivo, esa regla vieja se queda para siempre,
+-- aunque el resto del archivo sí esté al día. Eso fue justo lo que pasó
+-- con "representatives_rep_type_check". Por eso estas reglas se botan y
+-- se vuelven a crear cada vez que corres este archivo — así nunca quedan
+-- desactualizadas, aunque la tabla ya existiera de antes.
+-- ============================================================
+alter table profiles drop constraint if exists profiles_role_check;
+alter table profiles add constraint profiles_role_check
+  check (role in ('client','representative'));
+
+alter table representatives drop constraint if exists representatives_rep_type_check;
+alter table representatives add constraint representatives_rep_type_check
+  check (rep_type in ('agencia_aduanas','agente_sourcing','agente_carga','trading_company'));
+alter table representatives drop constraint if exists representatives_commission_type_check;
+alter table representatives add constraint representatives_commission_type_check
+  check (commission_type in ('pct','flat'));
+alter table representatives drop constraint if exists representatives_legal_person_type_check;
+alter table representatives add constraint representatives_legal_person_type_check
+  check (legal_person_type in ('natural','juridica'));
+
+alter table quote_requests drop constraint if exists quote_requests_status_check;
+alter table quote_requests add constraint quote_requests_status_check
+  check (status in ('pending','responded','accepted','rejected'));
+alter table quote_requests drop constraint if exists quote_requests_shipping_mode_check;
+alter table quote_requests add constraint quote_requests_shipping_mode_check
+  check (shipping_mode in ('LCL','FCL','AIR','COURIER'));
+alter table quote_requests drop constraint if exists quote_requests_verification_level_check;
+alter table quote_requests add constraint quote_requests_verification_level_check
+  check (verification_level in ('none','basic','inspection'));
+
+alter table chat_messages drop constraint if exists chat_messages_role_check;
+alter table chat_messages add constraint chat_messages_role_check
+  check (role in ('user','assistant'));
+
+alter table data_deletion_requests drop constraint if exists data_deletion_requests_status_check;
+alter table data_deletion_requests add constraint data_deletion_requests_status_check
+  check (status in ('pending','done'));
+
+-- ============================================================
 -- SEGURIDAD (Row Level Security)
 -- Por defecto, en Supabase cualquiera con la clave pública podría
 -- leer o escribir cualquier fila. Esto lo bloquea: cada quien solo
