@@ -1446,7 +1446,15 @@ const CAMINO_INFO = {
 const REGULATORY_THRESHOLD_NOTE = 'Estos umbrales están vigentes hoy, pero pueden cambiar por decisión de la DIAN o el Gobierno.';
 function decideCamino(){
   const status = state.status;
-  if(status === 'sinRutNoQuiere') return 'B';
+  if(status === 'sinRutNoQuiere'){
+    // El catálogo de Camino B es solo lo que un trading company YA tiene
+    // nacionalizado — si el cliente ya tiene su propio proveedor, ese
+    // catálogo puede no incluirlo y lo deja sin cómo avanzar. En ese caso
+    // se le muestran también los representantes de Camino A (con la
+    // salvedad del RUT bien visible), en vez de dejarlo solo con un
+    // catálogo que quizás esté vacío o no tenga su producto.
+    return state.hasSupplier === 'yes' ? 'ambos' : 'B';
+  }
   if(status === 'sinRutDispuesto') return 'ambos';
   return 'A'; // conRutImportador o empresaImporta
 }
@@ -1479,11 +1487,15 @@ function renderProfileResult(){
   const summaryHtml = renderAnswerSummary();
 
   if(recommendation === 'ambos'){
+    const noRutButHasSupplierNote = (status === 'sinRutNoQuiere' && state.hasSupplier === 'yes')
+      ? '<p class="hint" style="margin-top:8px;">Ya tienes tu propio proveedor identificado — el catálogo de Camino B es solo lo que un trading company ya tiene nacionalizado, así que puede no incluir tu producto. Por eso te mostramos también el Camino A, aunque implica el trámite del RUT que preferías evitar: así no te quedas sin una opción real si el catálogo no tiene lo que buscas.</p>'
+      : '';
     box.innerHTML = summaryHtml + `
       <div class="card" style="border-color:var(--ink);">
         <span class="pill pill-warn">Tu caso admite dos caminos</span>
         <div class="section-title" style="margin-top:8px;">Puedes elegir cómo traer ${cat.toLowerCase()}</div>
         <p class="hint" style="margin-top:0;">No hay una única respuesta correcta — depende de si prefieres más control (y mejor margen) a cambio de un trámite propio, o cero papeleo a cambio de pagar un poco más.</p>
+        ${noRutButHasSupplierNote}
       </div>
       <div class="grid" style="margin-bottom:16px;">
         <div class="card">
@@ -1506,16 +1518,12 @@ function renderProfileResult(){
       extraNote = '<div class="hint" style="margin-top:10px;">Con un valor FOB bajo (menos de USD 1.000), la ley no te exige usar una agencia de aduanas — podrías declarar tú mismo. Aun así, muchos prefieren apoyarse en un agente de sourcing para la parte de negociar con el proveedor.</div>';
     } else if(recommendation === 'A' && status === 'empresaImporta' && (value==='v2' || value==='v3')){
       extraNote = '<div class="hint" style="margin-top:10px;">Como tu volumen todavía no llega a un contenedor completo, te conviene comparar agencias por su capacidad de consolidar carga (LCL) con otros importadores de tu misma ruta, no solo por precio.</div>';
-    } else if(recommendation === 'B' && state.hasSupplier === 'yes'){
-      // El catálogo de un trading company es solo lo que ya tiene nacionalizado —
-      // no incluye automáticamente el proveedor que ella ya encontró. Sin esta
-      // nota, "revisar el catálogo" suena a ignorar esa respuesta.
-      extraNote = '<div class="hint" style="margin-top:10px;">Ya tienes tu propio proveedor identificado — el catálogo de un trading company es solo lo que ya tiene nacionalizado, así que puede no incluirlo. Cuando contactes a uno, cuéntale cuál es tu proveedor: algunos evalúan traerlo por encargo, además de mostrarte lo que ya tienen disponible.</div>';
     }
+    // Si llega aquí con recommendation==='B', decideCamino() ya garantiza
+    // que state.hasSupplier es 'no' (el caso 'yes' se resuelve como
+    // 'ambos' más arriba) — no hace falta distinguir de nuevo.
     const nextStepText = recommendation === 'B'
-      ? (state.hasSupplier === 'yes'
-          ? 'Próximo paso: contacta a un trading company y cuéntale que ya tienes proveedor — toma menos de 2 minutos.'
-          : 'Próximo paso: revisar el catálogo de trading companies disponibles — toma menos de 2 minutos.')
+      ? 'Próximo paso: revisar el catálogo de trading companies disponibles — toma menos de 2 minutos.'
       : 'Próximo paso: revisar representantes verificados para tu categoría — toma menos de 2 minutos.';
     box.innerHTML = summaryHtml + `
       <div class="card" style="border-color:var(--ink); background:var(--lime-tint);">

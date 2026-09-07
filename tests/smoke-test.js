@@ -190,18 +190,20 @@ async function run(){
     await page.waitForTimeout(200);
 
     const cases = [
-      ['sinRutNoQuiere', 'B'],
-      ['sinRutDispuesto', 'ambos'],
-      ['conRutImportador', 'A'],
-      ['empresaImporta', 'A']
+      ['sinRutNoQuiere', 'no', 'B'],
+      ['sinRutNoQuiere', 'yes', 'ambos'],
+      ['sinRutDispuesto', 'yes', 'ambos'],
+      ['conRutImportador', 'yes', 'A'],
+      ['empresaImporta', 'yes', 'A']
     ];
-    for(const [status, expected] of cases){
-      const result = await page.evaluate((s) => { state.status = s; return decideCamino(); }, status);
-      check(`D decideCamino('${status}') === '${expected}'`, result === expected);
+    for(const [status, hasSupplier, expected] of cases){
+      const result = await page.evaluate(({s,h}) => { state.status = s; state.hasSupplier = h; return decideCamino(); }, {s:status, h:hasSupplier});
+      check(`D decideCamino('${status}', proveedor='${hasSupplier}') === '${expected}'`, result === expected);
     }
 
-    // Regresión: Camino B + ya tiene proveedor debe aclarar lo del catálogo,
-    // no solo decir "revisa el catálogo" a secas.
+    // Regresión: sin RUT + ya tiene proveedor NO debe quedar encerrado en el
+    // catálogo de Camino B (que puede no tener su producto) — debe ver
+    // también Camino A como opción real, con la nota explicando por qué.
     await page.evaluate(() => {
       state.status = 'sinRutNoQuiere';
       state.hasSupplier = 'yes';
@@ -211,7 +213,8 @@ async function run(){
       renderProfileResult();
     });
     const resultHtml = await page.$eval('#profileResult', el => el.innerHTML);
-    check('D regresión: nota de "ya tienes proveedor" aparece en Camino B', resultHtml.includes('proveedor identificado'));
+    check('D regresión: nota de "ya tienes proveedor" explica por qué se muestran los dos caminos', resultHtml.includes('proveedor identificado'));
+    check('D regresión: NO queda encerrado en Camino B — también ve el botón de Camino A', resultHtml.includes('Elegir Camino A'));
 
     await page.close();
   }
