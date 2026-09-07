@@ -331,6 +331,20 @@ async function run(){
     const verifHtml = await page.$eval('#repVerifBox', el => el.innerHTML).catch(() => '');
     check('H1 NO existe el botón de auto-verificación (regresión de seguridad)', !verifHtml.includes('simulateVerifStep') && !verifHtml.includes('Avanzar siguiente paso'));
     check('H2 el checklist explica que la verificación la hace el equipo', verifHtml.includes('revisa el equipo'));
+
+    // Dashboard en pestañas: arranca en "Perfil", las otras están ocultas.
+    const initialTabState = await page.evaluate(() => ({
+      perfil: !document.getElementById('repTabPanel_perfil').hidden,
+      cotizaciones: document.getElementById('repTabPanel_cotizaciones').hidden,
+      pedidos: document.getElementById('repTabPanel_pedidos').hidden
+    }));
+    check('H3 arranca en la pestaña Perfil, las otras ocultas', initialTabState.perfil && initialTabState.cotizaciones && initialTabState.pedidos);
+    await page.click('#repTabBtn_cotizaciones');
+    const afterClick = await page.evaluate(() => ({
+      perfil: document.getElementById('repTabPanel_perfil').hidden,
+      cotizaciones: !document.getElementById('repTabPanel_cotizaciones').hidden
+    }));
+    check('H4 clic en "Cotizaciones" cambia de pestaña', afterClick.perfil && afterClick.cotizaciones);
     await page.close();
   }
 

@@ -659,12 +659,29 @@ function updateFaqProgress(containerId, seenKey, total, badgeText){
 function showRepPortalContent(){
   $('repLoginBox').innerHTML = `<div class="hint" style="margin-top:22px;">Conectado como <b>${state.repEmail}</b> · <span style="text-decoration:underline; cursor:pointer;" onclick="repLogout()">cerrar sesión</span></div>`;
   $('repPortalContent').style.display = 'block';
+  switchRepTab('perfil');
   renderRepVerificationChecklist();
   renderAvailabilityPanel();
   renderRepCatalogPanel();
   renderRepQueue();
   renderRepShipmentPanel();
   initFaqDeck('repFaqDeck', REP_FAQS, 'faqRepSeen', 'Representante preparado');
+}
+// Portal del representante organizado en pestañas (antes era una sola
+// página larga: verificación, disponibilidad, catálogo, solicitudes y
+// seguimiento todo junto, uno debajo del otro) — cada pestaña agrupa los
+// mismos contenedores de siempre, sin tocar su lógica de renderizado.
+const REP_TABS = ['perfil', 'cotizaciones', 'pedidos'];
+function switchRepTab(name){
+  REP_TABS.forEach(t => {
+    const panel = $('repTabPanel_'+t);
+    const btn = $('repTabBtn_'+t);
+    if(panel) panel.hidden = (t !== name);
+    if(btn){
+      btn.classList.toggle('active', t === name);
+      btn.setAttribute('aria-selected', t === name ? 'true' : 'false');
+    }
+  });
 }
 function renderAvailabilityPanel(){
   const box = $('repAvailabilityBox');
@@ -777,13 +794,22 @@ function backToClientFromRep(){
 }
 let repQueueRows = [];
 let repOpenRequest = null;
+function updateRepTabBadge(){
+  const badge = $('repTabBadge');
+  if(!badge) return;
+  const count = repQueueRows.length;
+  badge.textContent = count;
+  badge.hidden = count === 0;
+}
 async function renderRepQueue(){
   if(!state.repAvailable){
     $('repQueue').innerHTML = `<div class="banner">⚪ Estás pausado — no te están llegando nuevas solicitudes. Actívate arriba cuando quieras volver a recibir clientes.</div>`;
+    repQueueRows = []; updateRepTabBadge();
     return;
   }
   if(!supabaseClient || !state.repRecordId){
     $('repQueue').innerHTML = `<div class="hint">Inicia sesión como representante para ver tus solicitudes.</div>`;
+    repQueueRows = []; updateRepTabBadge();
     return;
   }
   $('repQueue').innerHTML = `<div class="waiting-box"><div class="dot-spinner"><span></span><span></span><span></span></div>Cargando solicitudes…</div>`;
@@ -795,9 +821,11 @@ async function renderRepQueue(){
     .order('created_at', { ascending:false });
   if(error){
     $('repQueue').innerHTML = `<div class="hint">No se pudieron cargar las solicitudes: ${error.message}</div>`;
+    repQueueRows = []; updateRepTabBadge();
     return;
   }
   repQueueRows = (data || []).map(sanitizeQuoteRow);
+  updateRepTabBadge();
   if(repQueueRows.length === 0){
     $('repQueue').innerHTML = `<div class="hint">Todavía no tienes solicitudes pendientes — aparecerán aquí apenas un cliente te elija y pida cotización.</div>`;
     return;

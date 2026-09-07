@@ -520,15 +520,32 @@
   <div class="wrap">
     <div id="repLoginBox"></div>
     <div id="repPortalContent" style="display:none;">
-      <div id="repVerifBox"></div>
-      <div id="repAvailabilityBox"></div>
-      <div id="repCatalogBox" style="display:none;"></div>
-      <div class="eyebrow" style="margin-top:22px;">Bandeja de solicitudes</div>
-      <div class="page-title">Cotizaciones por confirmar</div>
-      <div class="page-sub">Este es el lado de la plataforma que usan las agencias y representantes: responden aquí y el cliente ve el resultado del otro lado, en tiempo real.</div>
-      <div id="repQueue"></div>
-      <div id="repForm" style="display:none;"></div>
-      <div id="repShipmentPanel"></div>
+      <div class="rep-tabs" id="repTabs" role="tablist" aria-label="Secciones del portal">
+        <button type="button" class="rep-tab active" id="repTabBtn_perfil" role="tab" aria-selected="true" aria-controls="repTabPanel_perfil" onclick="switchRepTab('perfil')">Perfil</button>
+        <button type="button" class="rep-tab" id="repTabBtn_cotizaciones" role="tab" aria-selected="false" aria-controls="repTabPanel_cotizaciones" onclick="switchRepTab('cotizaciones')">Cotizaciones<span class="rep-tab-badge" id="repTabBadge" hidden>0</span></button>
+        <button type="button" class="rep-tab" id="repTabBtn_pedidos" role="tab" aria-selected="false" aria-controls="repTabPanel_pedidos" onclick="switchRepTab('pedidos')">Pedidos en curso</button>
+      </div>
+
+      <div class="rep-tab-panel" id="repTabPanel_perfil" role="tabpanel">
+        <div id="repVerifBox"></div>
+        <div id="repAvailabilityBox"></div>
+        <div id="repCatalogBox" style="display:none;"></div>
+      </div>
+
+      <div class="rep-tab-panel" id="repTabPanel_cotizaciones" role="tabpanel" hidden>
+        <div class="eyebrow" style="margin-top:22px;">Bandeja de solicitudes</div>
+        <div class="page-title">Cotizaciones por confirmar</div>
+        <div class="page-sub">Este es el lado de la plataforma que usan las agencias y representantes: responden aquí y el cliente ve el resultado del otro lado, en tiempo real.</div>
+        <div id="repQueue"></div>
+        <div id="repForm" style="display:none;"></div>
+      </div>
+
+      <div class="rep-tab-panel" id="repTabPanel_pedidos" role="tabpanel" hidden>
+        <div class="eyebrow" style="margin-top:22px;">Pedidos en curso</div>
+        <div class="page-title">Seguimiento de envío</div>
+        <div id="repShipmentPanel"></div>
+      </div>
+
       <div id="repFaqDeck" style="margin-top:20px;"></div>
     </div>
   </div>
