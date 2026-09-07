@@ -411,6 +411,56 @@ async function run(){
     await page.close();
   }
 
+  // ---------------- K. "MI CUENTA" (cliente) ----------------
+  console.log('K. Panel "Mi cuenta" del cliente');
+  {
+    const page = await browser.newPage({ viewport:{ width:390, height:900 } });
+    const errs = newErrorCollector(page);
+    await mockSupabase(page);
+    await page.goto(BASE_URL, { waitUntil:'networkidle' });
+    await page.click('.hero-cta-primary');
+    await page.waitForTimeout(200);
+
+    // Invitado: pestaña Perfil ofrece iniciar sesión / crear cuenta, no datos falsos.
+    await page.evaluate(() => openMyAccountPanel('perfil'));
+    await page.waitForTimeout(150);
+    const guestPerfilHtml = await page.$eval('#myAccountBody', el => el.innerHTML);
+    check('K1 invitado ve invitación a iniciar sesión (no datos falsos)', guestPerfilHtml.includes('invitado') && guestPerfilHtml.includes('Iniciar sesión'));
+
+    // Pestaña "Cotización activa" sin ninguna solicitud en curso.
+    await page.click('.rep-tab[data-tab="activa"]');
+    await page.waitForTimeout(150);
+    const activaEmptyHtml = await page.$eval('#myAccountBody', el => el.innerHTML);
+    check('K2 sin cotización activa muestra mensaje vacío, no crashea', activaEmptyHtml.includes('No tienes ninguna cotización en curso'));
+
+    // Pestaña "Pedidos anteriores" sin sesión.
+    await page.click('.rep-tab[data-tab="pedidos"]');
+    await page.waitForTimeout(150);
+    const pedidosGuestHtml = await page.$eval('#myAccountBody', el => el.innerHTML);
+    check('K3 pedidos anteriores pide iniciar sesión si es invitado', pedidosGuestHtml.includes('Inicia sesión'));
+
+    await page.click('.info-modal .btn-outline.btn-block');
+    await page.waitForTimeout(100);
+    check('K4 el panel cierra correctamente', await page.evaluate(() => !document.getElementById('infoModalBackdrop')));
+
+    // Con una cotización activa simulada: la pestaña debe mostrar folio + estado.
+    await page.evaluate(() => {
+      state.quoteRequestDbId = 'fake-id';
+      state.requestId = 'SOL-1234';
+      state.repResponded = false;
+      state.rejected = false;
+      state.paid = false;
+      openMyAccountPanel('activa');
+    });
+    await page.waitForTimeout(150);
+    const activaFilledHtml = await page.$eval('#myAccountBody', el => el.innerHTML);
+    check('K5 con cotización activa muestra el folio', activaFilledHtml.includes('SOL-1234'));
+    await page.evaluate(() => { closeInfoModal(); state.quoteRequestDbId = null; state.requestId = null; });
+
+    check('K6 sin errores de consola inesperados', errs.unexpected().length === 0);
+    await page.close();
+  }
+
   await browser.close();
 
   console.log(`\n${passed} pruebas OK, ${failed} fallaron.`);

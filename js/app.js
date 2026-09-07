@@ -1736,15 +1736,11 @@ function updateHistoryCardVisibility(){
   if(!state.loggedIn){ $('historyPanel').style.display = 'none'; }
 }
 let pastOrders = [];
-async function toggleHistory(){
-  const panel = $('historyPanel');
-  if(panel.style.display === 'block'){ panel.style.display='none'; return; }
-  panel.style.display = 'block';
-  if(!supabaseClient || !state.accountId){
-    panel.innerHTML = `<div class="hint" style="margin-top:8px;">No se pudo cargar tu historial ahora mismo.</div>`;
-    return;
-  }
-  panel.innerHTML = `<div class="hint" style="margin-top:8px;">Cargando…</div>`;
+// Se factoriza la carga (fetchPastOrders) y el HTML (pastOrdersHtml) para
+// que tanto el historyPanel de siempre como la pestaña "Pedidos
+// anteriores" de "Mi cuenta" usen exactamente la misma consulta.
+async function fetchPastOrders(){
+  if(!supabaseClient || !state.accountId) return { error: 'no-session' };
   const { data, error } = await supabaseClient
     .from('quote_requests')
     .select('*')
@@ -1752,16 +1748,15 @@ async function toggleHistory(){
     .eq('status', 'accepted')
     .order('created_at', { ascending:false })
     .limit(10);
-  if(error){
-    panel.innerHTML = `<div class="hint" style="margin-top:8px;">No se pudo cargar tu historial: ${error.message}</div>`;
-    return;
-  }
+  if(error) return { error: error.message };
   pastOrders = (data || []).map(sanitizeQuoteRow);
+  return { ok:true };
+}
+function pastOrdersHtml(){
   if(pastOrders.length === 0){
-    panel.innerHTML = `<div class="hint" style="margin-top:8px;">Todavía no tienes pedidos aceptados — aparecerán aquí cuando completes tu primera importación.</div>`;
-    return;
+    return `<div class="hint" style="margin-top:8px;">Todavía no tienes pedidos aceptados — aparecerán aquí cuando completes tu primera importación.</div>`;
   }
-  panel.innerHTML = pastOrders.map(o=>{
+  return pastOrders.map(o=>{
     const q = o.confirmed_quote || o.preliminary_quote || {};
     const total = q.total || o.fob_usd || 0;
     return `
@@ -1771,11 +1766,21 @@ async function toggleHistory(){
           <div style="font-weight:700; font-size:13px;">${o.product_name || 'Pedido'}</div>
           <div class="hint" style="margin:2px 0 0;">${new Date(o.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'})} · ${o.quantity||0} u · total ${fmtUsd(total)}</div>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="reorderPast('${o.id}')">Volver a pedir</button>
+        <button class="btn btn-outline btn-sm" onclick="closeInfoModal(); reorderPast('${o.id}')">Volver a pedir</button>
       </div>
     </div>
   `;
   }).join('');
+}
+async function toggleHistory(){
+  const panel = $('historyPanel');
+  if(panel.style.display === 'block'){ panel.style.display='none'; return; }
+  panel.style.display = 'block';
+  panel.innerHTML = `<div class="hint" style="margin-top:8px;">Cargando…</div>`;
+  const result = await fetchPastOrders();
+  if(result.error === 'no-session'){ panel.innerHTML = `<div class="hint" style="margin-top:8px;">No se pudo cargar tu historial ahora mismo.</div>`; return; }
+  if(result.error){ panel.innerHTML = `<div class="hint" style="margin-top:8px;">No se pudo cargar tu historial: ${result.error}</div>`; return; }
+  panel.innerHTML = pastOrdersHtml();
 }
 async function reorderPast(id){
   const o = pastOrders.find(x=>x.id===id);
@@ -1806,6 +1811,95 @@ async function reorderPast(id){
   }
   generateQuote();
 }
+
+// ---------------------------------------------------------------------
+// "MI CUENTA" (cliente): perfil, cotización activa y pedidos anteriores
+// reunidos en un solo panel accesible desde el header — sin tocar el
+// wizard por pasos. Reutiliza el modal de openInfoModal/closeInfoModal y
+// las mismas clases .rep-tabs del portal de representante.
+// ---------------------------------------------------------------------
+const MY_ACCOUNT_TABS = ['perfil', 'activa', 'pedidos'];
+const MY_ACCOUNT_TAB_LABELS = { perfil:'Perfil', activa:'Cotización activa', pedidos:'Pedidos anteriores' };
+async function openMyAccountPanel(tab){
+  tab = MY_ACCOUNT_TABS.includes(tab) ? tab : 'perfil';
+  openInfoModal(myAccountShellHtml(tab, `<div class="hint" style="margin-top:0;">Cargando…</div>`), true);
+  const body = await myAccountTabBodyHtml(tab);
+  const box = document.getElementById('myAccountBody');
+  if(box) box.innerHTML = body;
+}
+async function switchMyAccountTab(tab){
+  const backdrop = document.getElementById('infoModalBackdrop');
+  if(!backdrop) return;
+  backdrop.querySelectorAll('.rep-tab').forEach(btn=>{
+    const isActive = btn.dataset.tab === tab;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+  const box = backdrop.querySelector('#myAccountBody');
+  if(box) box.innerHTML = `<div class="hint" style="margin-top:0;">Cargando…</div>`;
+  const body = await myAccountTabBodyHtml(tab);
+  if(box) box.innerHTML = body;
+}
+function myAccountShellHtml(tab, bodyHtml){
+  const tabsHtml = MY_ACCOUNT_TABS.map(t=>`
+    <button type="button" class="rep-tab${t===tab?' active':''}" data-tab="${t}" role="tab" aria-selected="${t===tab}" onclick="switchMyAccountTab('${t}')">${MY_ACCOUNT_TAB_LABELS[t]}</button>
+  `).join('');
+  return `
+    <h3 style="margin-bottom:12px;">Mi cuenta</h3>
+    <div class="rep-tabs" role="tablist" aria-label="Secciones de mi cuenta">${tabsHtml}</div>
+    <div id="myAccountBody" style="margin-top:16px;">${bodyHtml}</div>
+    <button class="btn btn-outline btn-block" style="margin-top:16px;" onclick="closeInfoModal()">Cerrar</button>
+  `;
+}
+async function myAccountTabBodyHtml(tab){
+  if(tab === 'activa') return myAccountActivaHtml();
+  if(tab === 'pedidos') return await myAccountPedidosHtml();
+  return myAccountPerfilHtml();
+}
+function myAccountPerfilHtml(){
+  if(!state.loggedIn){
+    return `
+      <p class="hint" style="margin-top:0;">Estás explorando como invitado — inicia sesión o crea una cuenta para ver tu perfil y gestionar tus pedidos desde aquí.</p>
+      <button class="btn btn-primary btn-block" onclick="closeInfoModal(); openClientPortalGate('login')">Iniciar sesión</button>
+      <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="closeInfoModal(); openClientPortalGate('signup')">Crear cuenta</button>
+    `;
+  }
+  return `
+    <div class="card tight">
+      <div class="hint" style="margin:0 0 4px;">Correo electrónico</div>
+      <div style="font-weight:700; font-size:14px;">${escHtml(state.accountEmail || '')}</div>
+      ${state.contactWhatsapp ? `<div class="hint" style="margin:10px 0 4px;">WhatsApp</div><div style="font-weight:700; font-size:14px;">${escHtml(state.contactWhatsapp)}</div>` : ''}
+    </div>
+    <button class="btn btn-outline btn-block" style="margin-top:12px;" onclick="event.stopPropagation(); closeInfoModal(); openPrivacyPanel();">Privacidad y mis datos</button>
+    <button class="btn btn-text btn-block" style="margin-top:8px;" onclick="if(confirm('¿Cerrar tu sesión?')){ closeInfoModal(); clientLogout(); }">Cerrar sesión</button>
+  `;
+}
+function myAccountActivaHtml(){
+  if(!state.quoteRequestDbId){
+    return `
+      <p class="hint" style="margin-top:0;">No tienes ninguna cotización en curso ahora mismo.</p>
+      <button class="btn btn-primary btn-block" onclick="closeInfoModal(); enterApp(); startImporting();">Cotizar una importación</button>
+    `;
+  }
+  let statusLabel = 'Esperando respuesta del representante';
+  if(state.rejected) statusLabel = 'Rechazada por el representante';
+  else if(state.paid) statusLabel = 'Pagada — en seguimiento de envío';
+  else if(state.repResponded) statusLabel = 'Cotización confirmada — pendiente de tu aceptación';
+  return `
+    <div class="card tight">
+      <div style="font-weight:700; font-size:14px;">${escHtml(state.requestId || '')}</div>
+      <div class="hint" style="margin:4px 0 0;">${statusLabel}</div>
+    </div>
+    <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="closeInfoModal(); enterApp(); goTo(${state.paid ? 3 : 2});">Ver mi cotización →</button>
+  `;
+}
+async function myAccountPedidosHtml(){
+  if(!state.loggedIn) return `<p class="hint" style="margin-top:0;">Inicia sesión para ver tus pedidos anteriores.</p>`;
+  const result = await fetchPastOrders();
+  if(result.error) return `<p class="hint" style="margin-top:0;">No se pudo cargar tu historial ahora mismo.</p>`;
+  return pastOrdersHtml();
+}
+
 function currentReps(){
   return state.path==='B'
     ? allReps.filter(r=>r.repType==='trading_company')
