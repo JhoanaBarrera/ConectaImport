@@ -10,6 +10,18 @@ const $ = id => document.getElementById(id);
 function escHtml(s){
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 }
+// Para cuando un texto libre (nombre, correo) se pasa como argumento de
+// función dentro de un atributo onclick="..." — hace falta escapar DOS
+// veces: como literal de JS de comillas simples (comillas/backslashes) Y
+// como atributo HTML (comillas dobles), o un valor con comillas rompería
+// el atributo antes de que el navegador llegue a interpretarlo como JS.
+function escJsAttr(s){
+  return String(s ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '&quot;')
+    .replace(/\n/g, ' ');
+}
 // Las filas de quote_requests traen varios campos de texto libre escritos
 // por el cliente (product_name, contact_email/whatsapp) o el representante
 // (rep_note, reject_reason, reject_msg) que luego se interpolan en
@@ -60,7 +72,7 @@ function togglePasswordVisibility(inputId, btn){
   btn.innerHTML = showing ? EYE_ICON : EYE_OFF_ICON;
   btn.setAttribute('aria-label', showing ? 'Mostrar contraseña' : 'Ocultar contraseña');
 }
-let state = { status:'sinRutNoQuiere', hasSupplier:'yes', path:'B', verif:'basic', selectedRepId:null, selectedProduct:null, profileSubstep:1, mode:'AIR', paid:false, maxReached:0, loggedIn:false, accountEmail:null, accountId:null, quoteRequestDbId:null, lastQuote:null, preliminaryQuote:null, groupFreightOverride:null, compareMode:false, trmAtQuote:null, priceLocked:false, contactEmail:null, contactWhatsapp:null, requestId:null, notifications:[], repResponded:false, repRealQuote:null, repNote:null, rejected:false, rejectReason:null, rejectMsg:null, tlCurrentIndex:-1, tlNotes:{}, tlFiles:{}, repLoggedIn:false, repEmail:null, repRecordId:null, receipt:null, faqClientSeen:{}, faqRepSeen:{}, repVerifType:null, repVerifStatus:{}, supplierQuoteAttached:false, repAvailable:true, repMinOrder:0, clientRating:null, pendingStars:0, incotermKnowledge:'unknown', incoterm:'FOB' };
+let state = { status:'sinRutNoQuiere', hasSupplier:'yes', path:'B', verif:'basic', selectedRepId:null, selectedProduct:null, profileSubstep:1, mode:'AIR', paid:false, maxReached:0, loggedIn:false, accountEmail:null, accountId:null, quoteRequestDbId:null, lastQuote:null, preliminaryQuote:null, groupFreightOverride:null, compareMode:false, trmAtQuote:null, priceLocked:false, contactEmail:null, contactWhatsapp:null, requestId:null, notifications:[], repResponded:false, repRealQuote:null, repNote:null, rejected:false, rejectReason:null, rejectMsg:null, tlCurrentIndex:-1, tlNotes:{}, tlFiles:{}, repLoggedIn:false, repEmail:null, repRecordId:null, receipt:null, faqClientSeen:{}, faqRepSeen:{}, repVerifType:null, repVerifStatus:{}, supplierQuoteAttached:false, repAvailable:true, repMinOrder:0, repNotificationPreference:'email', clientRating:null, pendingStars:0, incotermKnowledge:'unknown', incoterm:'FOB' };
 
 // ---------------------------------------------------------------------
 // NOTIFICACIONES (registro tipo correo) + SOPORTE HUMANO
@@ -562,6 +574,7 @@ async function repLogin(mode, btn){
     state.repRecordId = rep.id;
     state.repAvailable = rep.available;
     state.repMinOrder = rep.min_order_usd || 0;
+    state.repNotificationPreference = rep.notification_preference || 'email';
     if(mode === 'signup'){
       logNotification(email, 'Recibimos tu solicitud de verificación', 'Revisamos tu identidad de inmediato; la licencia, cuenta bancaria y antecedentes suelen tardar 24–72h.');
     } else {
@@ -682,6 +695,48 @@ function switchRepTab(name){
       btn.setAttribute('aria-selected', t === name ? 'true' : 'false');
     }
   });
+  if(name === 'pedidos') loadRepPastQuotes();
+}
+// Historial completo de solicitudes ya resueltas (confirmadas, aceptadas o
+// rechazadas) — simétrico a "Mis pedidos anteriores" del cliente: ambas
+// partes deben poder ver el historial completo (incluyendo sus mensajes)
+// en cualquier momento, no solo mientras están conectadas.
+let repPastQuotes = [];
+function quoteStatusLabelEs(status){
+  return { responded:'Confirmada, esperando al cliente', accepted:'Aceptada', rejected:'Rechazada' }[status] || status;
+}
+async function loadRepPastQuotes(){
+  const box = $('repPastQuotesBox');
+  if(!box) return;
+  if(!supabaseClient || !state.repRecordId){ box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="hint" style="margin-top:14px;">Cargando historial…</div>`;
+  const { data, error } = await supabaseClient
+    .from('quote_requests')
+    .select('*')
+    .eq('representative_id', state.repRecordId)
+    .neq('status', 'pending')
+    .order('created_at', { ascending:false })
+    .limit(20);
+  if(error){
+    box.innerHTML = `<div class="hint">No se pudo cargar el historial: ${error.message}</div>`;
+    return;
+  }
+  repPastQuotes = (data || []).map(sanitizeQuoteRow);
+  if(repPastQuotes.length === 0){
+    box.innerHTML = `<div class="hint" style="margin-top:14px;">Todavía no tienes solicitudes resueltas — aparecerán aquí con su historial completo (incluyendo mensajes) apenas confirmes o rechaces la primera.</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="eyebrow" style="margin-top:28px;">Historial completo</div>` + repPastQuotes.map(r=>`
+    <div class="card tight" style="margin-top:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div>
+          <div style="font-weight:700; font-size:13px;">${r.product_name || 'Pedido'}</div>
+          <div class="hint" style="margin:2px 0 0;">Folio ${r.folio} · ${quoteStatusLabelEs(r.status)}</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="openQuoteChat('${r.id}', 'representative', '${escJsAttr('tu cliente · Folio ' + r.folio)}')">💬 Mensajes</button>
+      </div>
+    </div>
+  `).join('');
 }
 function renderAvailabilityPanel(){
   const box = $('repAvailabilityBox');
@@ -702,12 +757,32 @@ function renderAvailabilityPanel(){
       </div>
       <div class="hint" style="margin-top:8px;">Solo verás solicitudes que calcen con estos filtros — esto reduce el ruido de leads que no te sirven.</div>
     </div>
+    <div class="card">
+      <div class="section-title">Aviso de mensajes nuevos</div>
+      <p class="hint" style="margin-top:0;">Por cuál canal quieres que te avisemos cuando un cliente te escribe (el mensaje en sí solo se lee dentro de la plataforma, nunca en el aviso).</p>
+      <select id="rep_notif_pref" onchange="setNotificationPreference(this.value)">
+        <option value="email" ${state.repNotificationPreference==='email'?'selected':''}>Correo electrónico</option>
+        <option value="whatsapp" ${state.repNotificationPreference==='whatsapp'?'selected':''}>WhatsApp</option>
+        <option value="both" ${state.repNotificationPreference==='both'?'selected':''}>Ambos</option>
+      </select>
+      <div id="repNotifPrefSaved" class="hint" style="color:var(--status-ok); display:none; margin-top:6px;">✓ Guardado.</div>
+      ${state.repNotificationPreference !== 'email' ? `<div class="hint" style="margin-top:8px;">Por ahora solo el aviso por correo está conectado — el envío por WhatsApp llega apenas conectemos un proveedor de WhatsApp Business. Mientras tanto seguirás recibiendo el aviso por correo también.</div>` : ''}
+    </div>
   `;
 }
 function toggleAvailability(){
   state.repAvailable = !state.repAvailable;
   renderAvailabilityPanel();
   renderRepQueue();
+}
+async function setNotificationPreference(value){
+  state.repNotificationPreference = value;
+  if(supabaseClient && state.repRecordId){
+    await supabaseClient.from('representatives').update({ notification_preference: value }).eq('id', state.repRecordId);
+  }
+  renderAvailabilityPanel();
+  const savedBox = $('repNotifPrefSaved');
+  if(savedBox){ savedBox.style.display = 'block'; setTimeout(()=>{ savedBox.style.display='none'; }, 2000); }
 }
 // Solo las trading companies venden por catálogo (Camino B) — el resto de
 // roles responde solicitudes con valores reales, no publica productos.
@@ -834,20 +909,34 @@ async function renderRepQueue(){
     <div class="card tight" style="margin-bottom:8px;">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
         <div>
-          <div style="font-weight:700; font-size:13px;">${r.contact_email}</div>
-          <div class="hint" style="margin:2px 0 0;">${r.product_name || 'Pedido'} · Folio ${r.folio}</div>
+          <div style="font-weight:700; font-size:13px;">${r.product_name || 'Pedido'}</div>
+          <div class="hint" style="margin:2px 0 0;">Folio ${r.folio}</div>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="openRepForm('${r.id}')">Responder ahora</button>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-outline btn-sm" onclick="openQuoteChat('${r.id}', 'representative', '${escJsAttr('tu cliente · Folio ' + r.folio)}')">💬</button>
+          <button class="btn btn-primary btn-sm" onclick="openRepForm('${r.id}')">Responder ahora</button>
+        </div>
       </div>
     </div>
   `).join('');
 }
 
+// El correo/WhatsApp real del cliente NUNCA se muestra directo en esta
+// interfaz — toda la comunicación visible pasa por el chat propio de la
+// solicitud (ver openQuoteChat), como en Mercado Libre/Airbnb/Upwork.
+// Sigue guardado en la fila (lo necesitan las notificaciones por correo),
+// solo no se pinta en pantalla.
+function hiddenContactRowHtml(row){
+  return `
+    <div class="line-item"><span class="lbl">Contacto</span><span class="val" style="font-family:'Inter',sans-serif;">Disponible por mensajería interna</span></div>
+    <button type="button" class="btn btn-outline btn-sm btn-block" style="margin-top:8px;" onclick="openQuoteChat('${row.id}', 'representative', '${escJsAttr('tu cliente · Folio ' + row.folio)}')">💬 Escribirle por mensajes</button>
+  `;
+}
 function getClientContextHtml(row){
   return `
     <div class="card" style="background:var(--paper); border-style:dashed;">
       <div class="section-title">Contexto del cliente</div>
-      <div class="line-item"><span class="lbl">Contacto</span><span class="val" style="font-family:'Inter',sans-serif;">${row.contact_email}${row.contact_whatsapp ? ' · '+row.contact_whatsapp : ''}</span></div>
+      ${hiddenContactRowHtml(row)}
       <div class="line-item"><span class="lbl">Incoterm / ruta elegida</span><span class="val" style="font-family:'Inter',sans-serif;">${row.incoterm || 'FOB'} · ${row.shipping_mode || '—'}</span></div>
       <div class="line-item"><span class="lbl">Verificación que pidió</span><span class="val" style="font-family:'Inter',sans-serif;">${verifLabels[row.verification_level] || row.verification_level || '—'}</span></div>
       <div class="hint" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">Solicitud creada el ${new Date(row.created_at).toLocaleString('es-CO',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}.</div>
@@ -892,12 +981,12 @@ function openRepForm(id){
       ${incotermBanner}
       <div class="grid">
         ${incoterm==='EXW' ? `<div><label class="field-label">Recogida en fábrica + exportación (USD)</label><input type="number" id="rr_exw" value="${q.exwFee || 150}" oninput="updateRRTotal()"></div>` : ''}
-        <div><label class="field-label">Flete real (USD)</label><input type="number" id="rr_freight" value="${(q.freight||0).toFixed ? q.freight.toFixed(2) : (q.freight||0)}" oninput="updateRRTotal()"></div>
-        <div><label class="field-label">Seguro real (USD)</label><input type="number" id="rr_insurance" value="${(q.insurance||0).toFixed ? q.insurance.toFixed(2) : (q.insurance||0)}" oninput="updateRRTotal()"></div>
+        <div><label class="field-label">Flete real (USD)</label><input type="number" id="rr_freight" value="${(q.freight||0).toFixed(2)}" oninput="updateRRTotal()"></div>
+        <div><label class="field-label">Seguro real (USD)</label><input type="number" id="rr_insurance" value="${(q.insurance||0).toFixed(2)}" oninput="updateRRTotal()"></div>
         <div><label class="field-label">Arancel real (%)</label><input type="number" id="rr_tariff" value="${q.tariffRate ?? 15}" step="0.5" oninput="updateRRTotal()"></div>
         <div><label class="field-label">IVA (%)</label><input type="number" id="rr_iva" value="${q.ivaRate ?? 19}" step="0.5" oninput="updateRRTotal()"></div>
         <div><label class="field-label">Costo verificación (USD)</label><input type="number" id="rr_verif" value="${q.verifCost || 0}" oninput="updateRRTotal()"></div>
-        <div><label class="field-label">Tu comisión / honorarios (USD)</label><input type="number" id="rr_commission" value="${(q.repCommission||0).toFixed ? q.repCommission.toFixed(2) : (q.repCommission||0)}" oninput="updateRRTotal()"></div>
+        <div><label class="field-label">Tu comisión / honorarios (USD)</label><input type="number" id="rr_commission" value="${(q.repCommission||0).toFixed(2)}" oninput="updateRRTotal()"></div>
         <div><label class="field-label">Agente aduanas + portuarios (USD)</label><input type="number" id="rr_agent" value="${q.agentFee || 220}" oninput="updateRRTotal()"></div>
         <div><label class="field-label">Transporte interno hasta bodega (USD)</label><input type="number" id="rr_inland" value="${q.inlandFee || 0}" oninput="updateRRTotal()"></div>
       </div>
@@ -946,7 +1035,7 @@ function renderDdpRepForm(row){
     <div class="card">
       <div class="section-title">Tus valores reales</div>
       <div class="grid">
-        <div><label class="field-label">Tu comisión / honorarios (USD)</label><input type="number" id="rr_commission" value="${(q.repCommission||0).toFixed ? q.repCommission.toFixed(2) : (q.repCommission||0)}" oninput="updateRRTotalDdp()"></div>
+        <div><label class="field-label">Tu comisión / honorarios (USD)</label><input type="number" id="rr_commission" value="${(q.repCommission||0).toFixed(2)}" oninput="updateRRTotalDdp()"></div>
         <div><label class="field-label">Transporte interno hasta bodega (USD)</label><input type="number" id="rr_inland" value="${q.inlandFee || 0}" oninput="updateRRTotalDdp()"></div>
       </div>
       <div id="rrTotalPreview" class="hint" style="margin-top:12px; font-weight:700; color:var(--ink); font-size:13.5px;"></div>
@@ -980,7 +1069,7 @@ function updateRRTotalDdp(){
   const commission = parseFloat($('rr_commission').value)||0;
   const inlandFee = parseFloat($('rr_inland').value)||0;
   const total = fob+commission+inlandFee;
-  const prelimTotal = repOpenRequest.preliminary_quote ? repOpenRequest.preliminary_quote.total : total;
+  const prelimTotal = (repOpenRequest.preliminary_quote && repOpenRequest.preliminary_quote.total) ? repOpenRequest.preliminary_quote.total : total;
   const diffPct = prelimTotal>0 ? ((total-prelimTotal)/prelimTotal*100) : 0;
   const sign = diffPct>=0?'+':'';
   $('rrTotalPreview').textContent = `Total real para el cliente: ${fmtUsd(total)}  (estimado automático era ${fmtUsd(prelimTotal)}, ${sign}${diffPct.toFixed(1)}%)`;
@@ -1008,7 +1097,7 @@ function renderCatalogRepForm(row){
   $('repForm').innerHTML = `
     <div class="card" style="background:var(--paper); border-style:dashed;">
       <div class="section-title">Datos del cliente</div>
-      <div class="line-item"><span class="lbl">Contacto</span><span class="val" style="font-family:'Inter',sans-serif;">${row.contact_email}${row.contact_whatsapp ? ' · '+row.contact_whatsapp : ''}</span></div>
+      ${hiddenContactRowHtml(row)}
       <div class="hint" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">Pedido creado el ${new Date(row.created_at).toLocaleString('es-CO',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}.</div>
     </div>
     <div class="card">
@@ -1074,7 +1163,7 @@ function updateRRTotal(){
   const tariff = cif*(tariffRate/100);
   const iva = (cif+tariff)*(ivaRate/100);
   const total = cif+tariff+iva+verifCost+commission+agentFee+inlandFee;
-  const prelimTotal = repOpenRequest.preliminary_quote ? repOpenRequest.preliminary_quote.total : total;
+  const prelimTotal = (repOpenRequest.preliminary_quote && repOpenRequest.preliminary_quote.total) ? repOpenRequest.preliminary_quote.total : total;
   const diffPct = prelimTotal>0 ? ((total-prelimTotal)/prelimTotal*100) : 0;
   const sign = diffPct>=0?'+':'';
   $('rrTotalPreview').textContent = `Total real para el cliente: ${fmtUsd(total)}  (estimado automático era ${fmtUsd(prelimTotal)}, ${sign}${diffPct.toFixed(1)}%)`;
@@ -1774,7 +1863,10 @@ function pastOrdersHtml(){
           <div style="font-weight:700; font-size:13px;">${o.product_name || 'Pedido'}</div>
           <div class="hint" style="margin:2px 0 0;">${new Date(o.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'})} · ${o.quantity||0} u · total ${fmtUsd(total)}</div>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="closeInfoModal(); reorderPast('${o.id}')">Volver a pedir</button>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-outline btn-sm" onclick="openQuoteChat('${o.id}', 'client', '${escJsAttr((allReps.find(r=>r.id===o.representative_id)||{}).name || 'tu representante')}')">💬</button>
+          <button class="btn btn-outline btn-sm" onclick="closeInfoModal(); reorderPast('${o.id}')">Volver a pedir</button>
+        </div>
       </div>
     </div>
   `;
@@ -1898,7 +1990,10 @@ function myAccountActivaHtml(){
       <div style="font-weight:700; font-size:14px;">${escHtml(state.requestId || '')}</div>
       <div class="hint" style="margin:4px 0 0;">${statusLabel}</div>
     </div>
-    <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="closeInfoModal(); enterApp(); goTo(${state.paid ? 3 : 2});">Ver mi cotización →</button>
+    <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+      <button class="btn btn-primary" style="flex:1;" onclick="closeInfoModal(); enterApp(); goTo(${state.paid ? 3 : 2});">Ver mi cotización →</button>
+      <button class="btn btn-outline" onclick="openQuoteChat('${state.quoteRequestDbId}', 'client', '${escJsAttr($('quoteRepName') ? $('quoteRepName').textContent : 'tu representante')}')">💬 Mensajes</button>
+    </div>
   `;
 }
 async function myAccountPedidosHtml(){
@@ -1906,6 +2001,83 @@ async function myAccountPedidosHtml(){
   const result = await fetchPastOrders();
   if(result.error) return `<p class="hint" style="margin-top:0;">No se pudo cargar tu historial ahora mismo.</p>`;
   return pastOrdersHtml();
+}
+
+// ---------------------------------------------------------------------
+// CHAT POR COTIZACIÓN/SOLICITUD — un hilo propio ligado a la operación
+// específica, no un chat general. Ninguna de las dos partes ve el correo
+// ni el teléfono real de la otra en esta interfaz — toda la comunicación
+// visible pasa por acá. El envío pasa siempre por send_quote_message()
+// (ver supabase/schema.sql), que calcula quién escribe desde su sesión —
+// nunca se manda el rol desde el navegador.
+// ---------------------------------------------------------------------
+let activeChatQuoteId = null;
+let activeChatMyRole = null;
+async function fetchQuoteMessages(quoteId){
+  if(!supabaseClient) return { error:'Sin conexión ahora mismo.' };
+  const { data, error } = await supabaseClient
+    .from('quote_messages')
+    .select('*')
+    .eq('quote_request_id', quoteId)
+    .order('created_at', { ascending:true });
+  if(error) return { error: error.message };
+  return { messages: (data || []).map(m => ({ ...m, body: escHtml(m.body) })) };
+}
+function quoteChatMessagesHtml(messages, myRole){
+  if(messages.length === 0){
+    return `<div class="hint" style="margin:4px 0;">Todavía no hay mensajes — escribe el primero.</div>`;
+  }
+  return messages.map(m => `
+    <div class="chat-msg ${m.sender_role === myRole ? 'chat-msg-user' : 'chat-msg-assistant'}">${m.body}</div>
+  `).join('');
+}
+async function openQuoteChat(quoteId, myRole, counterpartLabel){
+  if(!quoteId || quoteId === 'null'){
+    alert('Todavía no hay una solicitud para conversar.');
+    return;
+  }
+  activeChatQuoteId = quoteId;
+  activeChatMyRole = myRole;
+  openInfoModal(quoteChatShellHtml(counterpartLabel, `<div class="hint" style="margin:4px 0;">Cargando…</div>`));
+  const result = await fetchQuoteMessages(quoteId);
+  const box = document.getElementById('quoteChatMessages');
+  if(!box) return;
+  box.innerHTML = result.error
+    ? `<div class="hint" style="color:var(--danger);">No se pudo cargar la conversación: ${escHtml(result.error)}</div>`
+    : quoteChatMessagesHtml(result.messages, myRole);
+  box.scrollTop = box.scrollHeight;
+}
+function quoteChatShellHtml(counterpartLabel, bodyHtml){
+  return `
+    <h3 style="margin-bottom:2px;">💬 Mensajes</h3>
+    <p class="hint" style="margin-top:0;">Con ${escHtml(counterpartLabel || 'la otra parte')} — toda la conversación de este pedido queda aquí, no hace falta salir de la plataforma ni compartir tu correo o WhatsApp directo.</p>
+    <div id="quoteChatMessages" class="quote-chat-body">${bodyHtml}</div>
+    <form class="chat-form" onsubmit="event.preventDefault(); sendQuoteChatMessage();">
+      <input type="text" id="quoteChatInput" placeholder="Escribe tu mensaje…" maxlength="2000" autocomplete="off">
+      <button type="submit" class="btn btn-primary btn-sm">Enviar</button>
+    </form>
+    <button class="btn btn-outline btn-block" style="margin-top:12px;" onclick="closeInfoModal()">Cerrar</button>
+  `;
+}
+async function sendQuoteChatMessage(){
+  const input = $('quoteChatInput');
+  if(!input) return;
+  const body = input.value.trim();
+  if(!body) return;
+  if(!supabaseClient){ alert('No hay conexión ahora mismo — intenta de nuevo en un momento.'); return; }
+  input.disabled = true;
+  const { error } = await supabaseClient.rpc('send_quote_message', { p_quote_id: activeChatQuoteId, p_body: body });
+  input.disabled = false;
+  if(error){ alert('No se pudo enviar el mensaje: ' + error.message); return; }
+  input.value = '';
+  input.focus();
+  const result = await fetchQuoteMessages(activeChatQuoteId);
+  const box = $('quoteChatMessages');
+  if(!box) return;
+  box.innerHTML = result.error
+    ? `<div class="hint" style="color:var(--danger);">No se pudo cargar la conversación: ${escHtml(result.error)}</div>`
+    : quoteChatMessagesHtml(result.messages, activeChatMyRole);
+  box.scrollTop = box.scrollHeight;
 }
 
 function currentReps(){
@@ -2643,7 +2815,8 @@ function renderWaitingCard(){
       <div class="hint" style="margin-top:0;">Folio <b>${state.requestId}</b> · normalmente responde en 24–48h. Te avisaremos a <b>${state.contactEmail}</b>${state.contactWhatsapp?` y por WhatsApp al ${state.contactWhatsapp}`:''}. Puedes cerrar esta pestaña — cuando vuelvas a entrar verás el estado actualizado aquí mismo.</div>
       <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" onclick="checkRepResponse(this)">🔄 Actualizar estado</button>
-        <button class="btn btn-text btn-sm" onclick="openSupport()">💬 Hablar con un asesor</button>
+        <button class="btn btn-outline btn-sm" onclick="openQuoteChat('${state.quoteRequestDbId}', 'client', '${escJsAttr($('quoteRepName').textContent)}')">💬 Mensajes con tu representante</button>
+        <button class="btn btn-text btn-sm" onclick="openSupport()">🆘 Hablar con un asesor</button>
       </div>
       <div class="hint" style="margin-top:14px; padding-top:12px; border-top:1px dashed var(--line);">Tu representante responde esto desde su propio portal, normalmente desde otro computador. Si quieres simular su respuesta para probar el flujo, entra a la <span style="text-decoration:underline; cursor:pointer; font-weight:700; color:var(--ink);" onclick="goToRepPortal()">vista de representante</span> con la cuenta de representante y responde la solicitud desde ahí.</div>
     </div>
@@ -2736,7 +2909,7 @@ function renderConfirmedQuote(){
       <div class="hint" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">Además de esto, Conecta Importa cobra un <b>fee de activación de ${fmtUsd(getPlatformFee(q.fob))}</b> (ejemplo, por definir) — es un cobro aparte de la plataforma, no de ${repName}.</div>
       <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
         <button class="btn btn-primary" id="acceptConfirmedBtn" disabled onclick="handleAcceptConfirmed()">Aceptar cotización confirmada</button>
-        <button class="btn btn-outline">Solicitar otro ajuste</button>
+        <button class="btn btn-outline" onclick="openQuoteChat('${state.quoteRequestDbId}', 'client', '${escJsAttr(repName)}')">💬 Solicitar otro ajuste (mensajes)</button>
       </div>
     </div>
     ${complianceExpedienteHtml()}
@@ -2820,6 +2993,7 @@ function renderCatalogConfirmedQuote(){
       <div class="hint" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">Además de esto, Conecta Importa cobra un <b>fee de activación de ${fmtUsd(getPlatformFee(q.total||0))}</b> (ejemplo, por definir) — es un cobro aparte de la plataforma, no de ${repName}.</div>
       <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
         <button class="btn btn-primary" onclick="handleAcceptConfirmed()">Aceptar pedido</button>
+        <button class="btn btn-outline" onclick="openQuoteChat('${state.quoteRequestDbId}', 'client', '${escJsAttr(repName)}')">💬 Mensajes</button>
       </div>
     </div>
   `;

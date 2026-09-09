@@ -1,11 +1,15 @@
 // Edge Function: notify
 // -----------------------------------------------------------------------
-// Recibe eventos de la tabla `quote_requests` (vía Database Webhooks de
-// Supabase) y envía el correo correspondiente con Resend:
+// Recibe eventos de las tablas `quote_requests` y `quote_messages` (vía
+// Database Webhooks de Supabase) y envía el correo correspondiente con
+// Resend:
 //   - Nueva solicitud (INSERT)              -> avisa al representante
 //   - Cotización confirmada (status:responded) -> avisa al cliente
 //   - Solicitud rechazada (status:rejected)     -> avisa al cliente
 //   - Cliente aceptó (status:accepted)          -> avisa al representante
+//   - Mensaje nuevo en quote_messages (INSERT)  -> avisa a la OTRA parte,
+//     con un aviso genérico (nunca el contenido del mensaje ni el
+//     contacto directo de quien escribió) y un link de vuelta a la app.
 //
 // Variables de entorno que necesita (se configuran como "Secrets" del
 // proyecto en Supabase, nunca se escriben aquí):
@@ -71,11 +75,44 @@ Deno.serve(async (req: Request) => {
   }
 
   const { type, table, record, old_record } = payload;
-  if (table !== 'quote_requests') {
+  if (table !== 'quote_requests' && table !== 'quote_messages') {
     return new Response('ignored', { status: 200 });
   }
 
   try {
+    if (table === 'quote_messages') {
+      if (type !== 'INSERT') return new Response('ignored', { status: 200 });
+      const { data: quote } = await supabaseAdmin
+        .from('quote_requests')
+        .select('folio, contact_email, representative_id')
+        .eq('id', record.quote_request_id)
+        .maybeSingle();
+      if (quote) {
+        // El aviso NUNCA lleva el contenido del mensaje ni el contacto
+        // directo de quien escribió — solo dice que hay algo nuevo y
+        // manda de vuelta a la plataforma a leerlo y responder ahí mismo.
+        if (record.sender_role === 'client') {
+          const repEmail = await getRepEmail(quote.representative_id);
+          if (repEmail) {
+            await sendEmail(
+              repEmail,
+              `Tienes un mensaje nuevo — Folio ${quote.folio}`,
+              `<p>Tienes un mensaje nuevo de un cliente en Conecta Importa sobre la solicitud <b>${quote.folio}</b>.</p>
+               <p><a href="${SITE_URL}">Entra a tu portal de representante para leerlo y responder</a>.</p>`
+            );
+          }
+        } else {
+          await sendEmail(
+            quote.contact_email,
+            `Tienes un mensaje nuevo de tu representante — Folio ${quote.folio}`,
+            `<p>Tu representante te escribió un mensaje nuevo en Conecta Importa sobre tu solicitud <b>${quote.folio}</b>.</p>
+             <p><a href="${SITE_URL}">Entra a Conecta Importa para leerlo y responder</a>.</p>`
+          );
+        }
+      }
+      return new Response('ok', { status: 200 });
+    }
+
     if (type === 'INSERT') {
       const repEmail = await getRepEmail(record.representative_id);
       if (repEmail) {

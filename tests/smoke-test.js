@@ -70,7 +70,7 @@ function fakeSupabaseInitScript(){
           const fixtureFor = (t) => t === 'representatives' ? window.__MOCK_REPS__
             : t === 'products' ? window.__MOCK_PRODUCTS__ : [];
           const q = {
-            select(){ return q; }, eq(){ return q; }, order(){ return q; },
+            select(){ return q; }, eq(){ return q; }, neq(){ return q; }, order(){ return q; },
             limit(){ return q; }, gte(){ return q; },
             insert(payload){ isInsert = true; insertPayload = Array.isArray(payload) ? payload[0] : payload; return q; },
             maybeSingle(){ return resolveOne(); },
@@ -461,6 +461,67 @@ async function run(){
     await page.evaluate(() => { closeInfoModal(); state.quoteRequestDbId = null; state.requestId = null; });
 
     check('K6 sin errores de consola inesperados', errs.unexpected().length === 0);
+    await page.close();
+  }
+
+  // ---------------- L. CHAT POR COTIZACIÓN + CONTACTO DIRECTO OCULTO ----------------
+  console.log('L. Chat por cotización y contacto directo oculto');
+  {
+    const page = await browser.newPage({ viewport:{ width:390, height:900 } });
+    const errs = newErrorCollector(page);
+    await mockSupabase(page);
+    await page.goto(BASE_URL, { waitUntil:'networkidle' });
+    await page.click('.hero-cta-primary');
+    await page.waitForTimeout(200);
+
+    await page.evaluate(() => openQuoteChat('fake-quote-id', 'client', 'Rep de prueba'));
+    await page.waitForTimeout(150);
+    const chatModalHtml = await page.$eval('#infoModalBackdrop', el => el.innerHTML);
+    check('L1 el modal de chat abre con el título correcto', chatModalHtml.includes('💬 Mensajes'));
+    check('L2 sin mensajes previos muestra el estado vacío', chatModalHtml.includes('Todavía no hay mensajes'));
+
+    await page.fill('#quoteChatInput', 'Hola, tengo una duda sobre mi pedido');
+    await page.click('.info-modal .chat-form button[type="submit"]');
+    await page.waitForTimeout(200);
+    check('L3 enviar un mensaje no crashea la app', errs.unexpected().length === 0);
+
+    await page.click('.info-modal .btn-outline.btn-block');
+    await page.waitForTimeout(100);
+    check('L4 el modal de chat cierra correctamente', await page.evaluate(() => !document.getElementById('infoModalBackdrop')));
+
+    // Regresión clave: el representante NO debe ver el correo/WhatsApp real
+    // del cliente en ninguna pantalla — toda la comunicación visible pasa
+    // por el chat de la solicitud.
+    await page.evaluate(() => {
+      state.repVerifType = 'agencia_aduanas';
+      state.repVerifStatus = { identidad:true };
+      state.repRecordId = 'rep-fake-id';
+      goToRepPortal();
+      showRepPortalContent();
+      repQueueRows = [{
+        id:'q1', folio:'SOL-9001', contact_email:'cliente-real@ejemplo.com', contact_whatsapp:'+573000000000',
+        product_name:'Producto de prueba', incoterm:'FOB', shipping_mode:'LCL', verification_level:'none',
+        fob_usd:1000, created_at:new Date().toISOString(),
+        preliminary_quote:{ fob:1000, freight:100, insurance:5, exwFee:0, cif:1105, tariffRate:15, tariff:165.75, ivaRate:19, iva:241.2, verifCost:0, repCommission:30, agentFee:220, inlandFee:0, lockFee:0, total:1761.95, incoterm:'FOB' }
+      }];
+      openRepForm('q1');
+    });
+    await page.waitForTimeout(150);
+    const repFormHtml = await page.$eval('#repForm', el => el.innerHTML);
+    check('L5 el representante NO ve el correo real del cliente', !repFormHtml.includes('cliente-real@ejemplo.com'));
+    check('L6 el representante NO ve el WhatsApp real del cliente', !repFormHtml.includes('+573000000000'));
+    check('L7 en cambio ve el botón de mensajería interna', repFormHtml.includes('Escribirle por mensajes'));
+
+    // Preferencia de canal de notificación del representante.
+    await page.evaluate(() => renderAvailabilityPanel());
+    const availHtml = await page.$eval('#repAvailabilityBox', el => el.innerHTML);
+    check('L8 selector de preferencia de notificación está presente', availHtml.includes('rep_notif_pref'));
+
+    // Historial del representante (pestaña "Pedidos en curso") no crashea.
+    await page.evaluate(() => switchRepTab('pedidos'));
+    await page.waitForTimeout(150);
+    check('L9 cambiar a "Pedidos en curso" carga el historial sin crashear', errs.unexpected().length === 0);
+
     await page.close();
   }
 

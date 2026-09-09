@@ -69,6 +69,11 @@ alter table representatives add column if not exists legal_person_type text chec
 -- todavía, y nunca el propio representante).
 alter table representatives add column if not exists verified_at timestamptz;
 alter table representatives add column if not exists verified_by text;
+-- Por cuál canal prefiere que le avisen cuando le llega un mensaje nuevo.
+-- Nota: hoy solo el envío por correo está conectado de verdad (Resend) —
+-- "whatsapp"/"both" quedan guardados para cuando se conecte un proveedor
+-- real de WhatsApp Business, ver supabase/functions/notify.
+alter table representatives add column if not exists notification_preference text not null default 'email';
 
 -- ------------------------------------------------------------
 -- SOLICITUDES DE COTIZACIÓN: el corazón del negocio.
@@ -233,6 +238,21 @@ create table if not exists chat_messages (
 );
 
 -- ------------------------------------------------------------
+-- MENSAJES por cotización/solicitud: chat propio entre cliente y
+-- representante, ligado a una operación específica (no un chat general).
+-- Reduce el incentivo de salirse de la plataforma a negociar por fuera
+-- (WhatsApp/correo personal) — ver send_quote_message() más abajo, que es
+-- la única forma de escribir en esta tabla (nunca un insert directo).
+-- ------------------------------------------------------------
+create table if not exists quote_messages (
+  id uuid primary key default gen_random_uuid(),
+  quote_request_id uuid not null references quote_requests(id) on delete cascade,
+  sender_role text not null check (sender_role in ('client','representative')),
+  body text not null,
+  created_at timestamptz not null default now()
+);
+
+-- ------------------------------------------------------------
 -- Solicitud de eliminación de datos (Ley 1581 de 2012) — no se borra
 -- automáticamente al pedirlo (borrar en cascada sin supervisión es
 -- riesgoso); queda registrada la solicitud, con fecha, para que el
@@ -289,6 +309,13 @@ alter table representatives add constraint representatives_commission_type_check
 alter table representatives drop constraint if exists representatives_legal_person_type_check;
 alter table representatives add constraint representatives_legal_person_type_check
   check (legal_person_type in ('natural','juridica'));
+alter table representatives drop constraint if exists representatives_notification_preference_check;
+alter table representatives add constraint representatives_notification_preference_check
+  check (notification_preference in ('email','whatsapp','both'));
+
+alter table quote_messages drop constraint if exists quote_messages_sender_role_check;
+alter table quote_messages add constraint quote_messages_sender_role_check
+  check (sender_role in ('client','representative'));
 
 alter table quote_requests drop constraint if exists quote_requests_status_check;
 alter table quote_requests add constraint quote_requests_status_check
@@ -327,6 +354,7 @@ alter table chat_conversations enable row level security;
 alter table chat_messages enable row level security;
 alter table data_deletion_requests enable row level security;
 alter table client_error_logs enable row level security;
+alter table quote_messages enable row level security;
 
 -- Cada quien puede ver y editar su propio perfil
 drop policy if exists "profiles: leer el propio" on profiles;
@@ -503,6 +531,26 @@ drop policy if exists "client_error_logs: cualquiera puede reportar" on client_e
 create policy "client_error_logs: cualquiera puede reportar" on client_error_logs
   for insert with check (true);
 
+-- Mensajes por cotización: solo los ve el cliente dueño de la solicitud o
+-- el representante al que va dirigida — igual que quote_requests. El
+-- insert se hace exclusivamente por send_quote_message() (ver más abajo),
+-- por eso no hay policy de "insert" aquí (queda revocado el insert directo).
+drop policy if exists "quote_messages: ver las de mi solicitud (cliente)" on quote_messages;
+create policy "quote_messages: ver las de mi solicitud (cliente)" on quote_messages
+  for select using (
+    quote_request_id in (select id from quote_requests where client_id = auth.uid())
+  );
+drop policy if exists "quote_messages: ver las de mi solicitud (representante)" on quote_messages;
+create policy "quote_messages: ver las de mi solicitud (representante)" on quote_messages
+  for select using (
+    quote_request_id in (
+      select qr.id from quote_requests qr
+      join representatives r on r.id = qr.representative_id
+      where r.profile_id = auth.uid()
+    )
+  );
+revoke insert, update, delete on quote_messages from authenticated, anon;
+
 -- ------------------------------------------------------------
 -- Verificación manual de representantes (nunca autocertificada) —
 -- aunque alguien intente llamar a la API directamente con la llave
@@ -513,7 +561,7 @@ revoke update on representatives from authenticated, anon;
 grant update (
   business_name, categories, available, min_order_usd,
   commission_type, commission_value, bank_entity, bank_account_type,
-  bank_last4, legal_person_type
+  bank_last4, legal_person_type, notification_preference
 ) on representatives to authenticated;
 -- nit_or_cedula, dian_license, rep_type, verification_status, rating,
 -- operations_count, verified_at, verified_by, profile_id quedan fuera:
@@ -531,6 +579,7 @@ create index if not exists idx_representatives_profile_id on representatives(pro
 create index if not exists idx_products_representative_id on products(representative_id);
 create index if not exists idx_orders_quote_request_id on orders(quote_request_id);
 create index if not exists idx_shipment_events_order_id on shipment_events(order_id);
+create index if not exists idx_quote_messages_quote_request_id on quote_messages(quote_request_id);
 
 -- ============================================================
 -- Transiciones de estado de quote_requests SOLO por función
@@ -649,3 +698,44 @@ begin
 end;
 $$;
 grant execute on function accept_quote_request(uuid) to authenticated;
+
+-- ============================================================
+-- CHAT POR COTIZACIÓN — un mensaje siempre pasa por esta función, nunca
+-- por un insert directo. Así sender_role no lo puede falsificar quien
+-- escribe (se calcula acá, a partir de auth.uid(), no de lo que mande el
+-- navegador): o eres el cliente dueño de la solicitud, o el representante
+-- al que va dirigida — cualquier otro caso, se rechaza.
+-- ============================================================
+create or replace function send_quote_message(p_quote_id uuid, p_body text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_role text;
+begin
+  if p_body is null or trim(p_body) = '' then
+    raise exception 'El mensaje no puede estar vacío.';
+  end if;
+  if length(p_body) > 2000 then
+    raise exception 'El mensaje es demasiado largo (máximo 2000 caracteres).';
+  end if;
+
+  if exists (select 1 from quote_requests where id = p_quote_id and client_id = auth.uid()) then
+    v_role := 'client';
+  elsif exists (
+    select 1 from quote_requests qr
+    join representatives r on r.id = qr.representative_id
+    where qr.id = p_quote_id and r.profile_id = auth.uid()
+  ) then
+    v_role := 'representative';
+  else
+    raise exception 'No tienes acceso a esta solicitud.';
+  end if;
+
+  insert into quote_messages (quote_request_id, sender_role, body)
+  values (p_quote_id, v_role, trim(p_body));
+end;
+$$;
+grant execute on function send_quote_message(uuid, text) to authenticated;
